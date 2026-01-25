@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: mikrotik-api
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///./data/mikrotik.db
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key}
+    volumes:
+      - ./data:/app/data
+    networks:
+      - mikrotik-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: mikrotik-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - backend
+    networks:
+      - mikrotik-network
+
+networks:
+  mikrotik-network:
+    driver: bridge
