@@ -65,6 +65,27 @@ class MikrotikService:
                 except Exception:
                     pass
 
+    def _safe_int(self, value, default=0) -> int:
+        """Safely convert value to int."""
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return default
+
+    def _parse_bytes(self, value: str, index: int) -> int:
+        """Parse bytes from comma-separated string."""
+        try:
+            if not value:
+                return 0
+            parts = str(value).split(",")
+            if len(parts) > index:
+                return int(parts[index].strip())
+            return 0
+        except (ValueError, IndexError):
+            return 0
+
     def test_connection(self) -> Dict[str, Any]:
         """Test connection and return router identity."""
         try:
@@ -149,7 +170,8 @@ class MikrotikService:
                         "status": lease.get("status", ""),
                         "expires_after": lease.get("expires-after", ""),
                         "last_seen": lease.get("last-seen", ""),
-                        "comment": lease.get("comment", "")
+                        "comment": lease.get("comment", ""),
+                        "dynamic": lease.get("dynamic", "false") == "true"
                     }
                     for lease in leases
                 ]
@@ -157,7 +179,8 @@ class MikrotikService:
             logger.error(f"Error getting DHCP leases: {e}")
             return []
 
-    def add_dhcp_lease(self, address: str, mac_address: str, server: str = "default", comment: str = "") -> bool:
+    def add_dhcp_lease(self, address: str, mac_address: str, server: str = "default",
+                       hostname: str = "", comment: str = "") -> bool:
         """Add a static DHCP lease."""
         try:
             with self._connection() as api:
@@ -166,6 +189,8 @@ class MikrotikService:
                     "mac-address": mac_address,
                     "server": server
                 }
+                if hostname:
+                    params["host-name"] = hostname
                 if comment:
                     params["comment"] = comment
                 api.path("/ip/dhcp-server/lease").add(**params)
@@ -184,22 +209,119 @@ class MikrotikService:
             logger.error(f"Error deleting DHCP lease: {e}")
             return False
 
+    def make_dhcp_lease_static(self, lease_id: str) -> bool:
+        """Make a dynamic DHCP lease static."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dhcp-server/lease").call("make-static", {".id": lease_id})
+                return True
+        except Exception as e:
+            logger.error(f"Error making lease static: {e}")
+            return False
+
+    def get_dhcp_servers(self) -> List[Dict[str, Any]]:
+        """Get all DHCP servers."""
+        try:
+            with self._connection() as api:
+                servers = list(api.path("/ip/dhcp-server"))
+                return [
+                    {
+                        "id": srv.get(".id", ""),
+                        "name": srv.get("name", ""),
+                        "interface": srv.get("interface", ""),
+                        "address_pool": srv.get("address-pool", ""),
+                        "lease_time": srv.get("lease-time", ""),
+                        "disabled": srv.get("disabled", "false") == "true",
+                        "invalid": srv.get("invalid", "false") == "true",
+                        "authoritative": srv.get("authoritative", ""),
+                        "use_radius": srv.get("use-radius", "false") == "true"
+                    }
+                    for srv in servers
+                ]
+        except Exception as e:
+            logger.error(f"Error getting DHCP servers: {e}")
+            return []
+
+    def get_dhcp_networks(self) -> List[Dict[str, Any]]:
+        """Get all DHCP network configurations."""
+        try:
+            with self._connection() as api:
+                networks = list(api.path("/ip/dhcp-server/network"))
+                return [
+                    {
+                        "id": net.get(".id", ""),
+                        "address": net.get("address", ""),
+                        "gateway": net.get("gateway", ""),
+                        "dns_server": net.get("dns-server", ""),
+                        "domain": net.get("domain", ""),
+                        "netmask": net.get("netmask", ""),
+                        "ntp_server": net.get("ntp-server", ""),
+                        "wins_server": net.get("wins-server", ""),
+                        "comment": net.get("comment", "")
+                    }
+                    for net in networks
+                ]
+        except Exception as e:
+            logger.error(f"Error getting DHCP networks: {e}")
+            return []
+
+    def get_ip_pools(self) -> List[Dict[str, Any]]:
+        """Get all IP pools."""
+        try:
+            with self._connection() as api:
+                pools = list(api.path("/ip/pool"))
+                return [
+                    {
+                        "id": pool.get(".id", ""),
+                        "name": pool.get("name", ""),
+                        "ranges": pool.get("ranges", ""),
+                        "next_pool": pool.get("next-pool", ""),
+                        "comment": pool.get("comment", "")
+                    }
+                    for pool in pools
+                ]
+        except Exception as e:
+            logger.error(f"Error getting IP pools: {e}")
+            return []
+
+    def toggle_dhcp_server(self, server_id: str, enable: bool) -> bool:
+        """Enable or disable a DHCP server."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dhcp-server").update(
+                    **{".id": server_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling DHCP server: {e}")
+            return False
+
     # ==================== WiFi ====================
 
     def get_wifi_clients(self) -> List[Dict[str, Any]]:
         """Get all connected WiFi clients."""
         try:
             with self._connection() as api:
-                # Try wireless/registration-table first (standard)
-                try:
-                    registrations = list(api.path("/interface/wireless/registration-table"))
-                except Exception:
-                    registrations = []
+                registrations = []
 
-                # Also try CAPsMAN if available
+                # Try standard wireless registration table
+                try:
+                    regs = list(api.path("/interface/wireless/registration-table"))
+                    registrations.extend(regs)
+                except Exception:
+                    pass
+
+                # Try CAPsMAN registration table
                 try:
                     capsman = list(api.path("/caps-man/registration-table"))
                     registrations.extend(capsman)
+                except Exception:
+                    pass
+
+                # Try WiFi (RouterOS 7.13+) registration table
+                try:
+                    wifi = list(api.path("/interface/wifi/registration-table"))
+                    registrations.extend(wifi)
                 except Exception:
                     pass
 
@@ -207,12 +329,13 @@ class MikrotikService:
                     {
                         "interface": reg.get("interface", ""),
                         "mac_address": reg.get("mac-address", ""),
-                        "signal_strength": reg.get("signal-strength", ""),
+                        "signal_strength": reg.get("signal-strength", reg.get("signal", "")),
                         "tx_rate": reg.get("tx-rate", ""),
                         "rx_rate": reg.get("rx-rate", ""),
                         "uptime": reg.get("uptime", ""),
-                        "bytes_sent": int(reg.get("bytes", "0").split(",")[0]) if reg.get("bytes") else 0,
-                        "bytes_received": int(reg.get("bytes", "0,0").split(",")[1]) if "," in reg.get("bytes", "") else 0
+                        "bytes_sent": self._parse_bytes(reg.get("bytes", ""), 0),
+                        "bytes_received": self._parse_bytes(reg.get("bytes", ""), 1),
+                        "ssid": reg.get("ssid", "")
                     }
                     for reg in registrations
                 ]
@@ -224,23 +347,51 @@ class MikrotikService:
         """Get all wireless interfaces."""
         try:
             with self._connection() as api:
-                interfaces = list(api.path("/interface/wireless"))
-                return [
-                    {
-                        "id": iface.get(".id", ""),
-                        "name": iface.get("name", ""),
-                        "mac_address": iface.get("mac-address", ""),
-                        "ssid": iface.get("ssid", ""),
-                        "mode": iface.get("mode", ""),
-                        "band": iface.get("band", ""),
-                        "channel_width": iface.get("channel-width", ""),
-                        "frequency": iface.get("frequency", ""),
-                        "security_profile": iface.get("security-profile", ""),
-                        "disabled": iface.get("disabled", "false") == "true",
-                        "running": iface.get("running", "false") == "true"
-                    }
-                    for iface in interfaces
-                ]
+                interfaces = []
+
+                # Try standard wireless
+                try:
+                    wireless = list(api.path("/interface/wireless"))
+                    for iface in wireless:
+                        interfaces.append({
+                            "id": iface.get(".id", ""),
+                            "name": iface.get("name", ""),
+                            "mac_address": iface.get("mac-address", ""),
+                            "ssid": iface.get("ssid", ""),
+                            "mode": iface.get("mode", ""),
+                            "band": iface.get("band", ""),
+                            "channel_width": iface.get("channel-width", ""),
+                            "frequency": iface.get("frequency", ""),
+                            "security_profile": iface.get("security-profile", ""),
+                            "disabled": iface.get("disabled", "false") == "true",
+                            "running": iface.get("running", "false") == "true",
+                            "interface_type": "wireless"
+                        })
+                except Exception as e:
+                    logger.debug(f"No standard wireless: {e}")
+
+                # Try WiFi (RouterOS 7.13+)
+                try:
+                    wifi = list(api.path("/interface/wifi"))
+                    for iface in wifi:
+                        interfaces.append({
+                            "id": iface.get(".id", ""),
+                            "name": iface.get("name", ""),
+                            "mac_address": iface.get("mac-address", ""),
+                            "ssid": iface.get("configuration.ssid", iface.get("ssid", "")),
+                            "mode": iface.get("configuration.mode", iface.get("mode", "")),
+                            "band": iface.get("configuration.band", ""),
+                            "channel_width": iface.get("configuration.channel.width", ""),
+                            "frequency": iface.get("configuration.channel.frequency", ""),
+                            "security_profile": iface.get("security", ""),
+                            "disabled": iface.get("disabled", "false") == "true",
+                            "running": iface.get("running", "false") == "true",
+                            "interface_type": "wifi"
+                        })
+                except Exception as e:
+                    logger.debug(f"No WiFi interfaces: {e}")
+
+                return interfaces
         except Exception as e:
             logger.error(f"Error getting wireless interfaces: {e}")
             return []
@@ -249,19 +400,61 @@ class MikrotikService:
         """Get wireless security profiles."""
         try:
             with self._connection() as api:
-                profiles = list(api.path("/interface/wireless/security-profiles"))
-                return [
-                    {
-                        "id": profile.get(".id", ""),
-                        "name": profile.get("name", ""),
-                        "mode": profile.get("mode", ""),
-                        "authentication_types": profile.get("authentication-types", "")
-                    }
-                    for profile in profiles
-                ]
+                profiles = []
+
+                # Try standard wireless security profiles
+                try:
+                    wireless_profiles = list(api.path("/interface/wireless/security-profiles"))
+                    for profile in wireless_profiles:
+                        profiles.append({
+                            "id": profile.get(".id", ""),
+                            "name": profile.get("name", ""),
+                            "mode": profile.get("mode", ""),
+                            "authentication_types": profile.get("authentication-types", ""),
+                            "wpa_pre_shared_key": "****" if profile.get("wpa-pre-shared-key") else "",
+                            "wpa2_pre_shared_key": "****" if profile.get("wpa2-pre-shared-key") else "",
+                            "profile_type": "wireless"
+                        })
+                except Exception:
+                    pass
+
+                # Try WiFi security (RouterOS 7.13+)
+                try:
+                    wifi_security = list(api.path("/interface/wifi/security"))
+                    for sec in wifi_security:
+                        profiles.append({
+                            "id": sec.get(".id", ""),
+                            "name": sec.get("name", ""),
+                            "mode": sec.get("authentication-types", ""),
+                            "authentication_types": sec.get("authentication-types", ""),
+                            "passphrase": "****" if sec.get("passphrase") else "",
+                            "profile_type": "wifi"
+                        })
+                except Exception:
+                    pass
+
+                return profiles
         except Exception as e:
             logger.error(f"Error getting security profiles: {e}")
             return []
+
+    def update_wireless_interface(self, interface_id: str, ssid: str = None,
+                                   security_profile: str = None, disabled: bool = None) -> bool:
+        """Update wireless interface settings."""
+        try:
+            with self._connection() as api:
+                params = {".id": interface_id}
+                if ssid is not None:
+                    params["ssid"] = ssid
+                if security_profile is not None:
+                    params["security-profile"] = security_profile
+                if disabled is not None:
+                    params["disabled"] = "yes" if disabled else "no"
+                api.path("/interface/wireless").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating wireless interface: {e}")
+            return False
 
     # ==================== Interfaces ====================
 
@@ -270,21 +463,26 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 interfaces = list(api.path("/interface"))
-                return [
-                    {
+                result = []
+                for iface in interfaces:
+                    result.append({
                         "id": iface.get(".id", ""),
                         "name": iface.get("name", ""),
+                        "default_name": iface.get("default-name", ""),
                         "type": iface.get("type", ""),
                         "mac_address": iface.get("mac-address", ""),
-                        "mtu": int(iface.get("mtu", 0)) if iface.get("mtu") else None,
+                        "mtu": self._safe_int(iface.get("actual-mtu", iface.get("mtu"))),
+                        "l2mtu": self._safe_int(iface.get("l2mtu")),
                         "running": iface.get("running", "false") == "true",
                         "disabled": iface.get("disabled", "false") == "true",
                         "comment": iface.get("comment", ""),
-                        "tx_bytes": int(iface.get("tx-byte", 0)) if iface.get("tx-byte") else 0,
-                        "rx_bytes": int(iface.get("rx-byte", 0)) if iface.get("rx-byte") else 0
-                    }
-                    for iface in interfaces
-                ]
+                        "tx_bytes": self._safe_int(iface.get("tx-byte", 0)),
+                        "rx_bytes": self._safe_int(iface.get("rx-byte", 0)),
+                        "tx_packets": self._safe_int(iface.get("tx-packet", 0)),
+                        "rx_packets": self._safe_int(iface.get("rx-packet", 0)),
+                        "link_downs": self._safe_int(iface.get("link-downs", 0))
+                    })
+                return result
         except Exception as e:
             logger.error(f"Error getting interfaces: {e}")
             return []
@@ -293,13 +491,139 @@ class MikrotikService:
         """Enable or disable an interface."""
         try:
             with self._connection() as api:
-                if enable:
-                    api.path("/interface").update(**{".id": interface_id, "disabled": "no"})
-                else:
-                    api.path("/interface").update(**{".id": interface_id, "disabled": "yes"})
+                api.path("/interface").update(
+                    **{".id": interface_id, "disabled": "no" if enable else "yes"}
+                )
                 return True
         except Exception as e:
             logger.error(f"Error toggling interface: {e}")
+            return False
+
+    # ==================== Bridges ====================
+
+    def get_bridges(self) -> List[Dict[str, Any]]:
+        """Get all bridge interfaces."""
+        try:
+            with self._connection() as api:
+                bridges = list(api.path("/interface/bridge"))
+                return [
+                    {
+                        "id": br.get(".id", ""),
+                        "name": br.get("name", ""),
+                        "mac_address": br.get("mac-address", ""),
+                        "mtu": self._safe_int(br.get("mtu", br.get("actual-mtu"))),
+                        "protocol_mode": br.get("protocol-mode", ""),
+                        "fast_forward": br.get("fast-forward", "false") == "true",
+                        "igmp_snooping": br.get("igmp-snooping", "false") == "true",
+                        "vlan_filtering": br.get("vlan-filtering", "false") == "true",
+                        "admin_mac": br.get("admin-mac", ""),
+                        "ageing_time": br.get("ageing-time", ""),
+                        "arp": br.get("arp", ""),
+                        "disabled": br.get("disabled", "false") == "true",
+                        "running": br.get("running", "false") == "true",
+                        "comment": br.get("comment", "")
+                    }
+                    for br in bridges
+                ]
+        except Exception as e:
+            logger.error(f"Error getting bridges: {e}")
+            return []
+
+    def get_bridge_ports(self) -> List[Dict[str, Any]]:
+        """Get all bridge ports."""
+        try:
+            with self._connection() as api:
+                ports = list(api.path("/interface/bridge/port"))
+                return [
+                    {
+                        "id": port.get(".id", ""),
+                        "bridge": port.get("bridge", ""),
+                        "interface": port.get("interface", ""),
+                        "hw": port.get("hw", "false") == "true",
+                        "pvid": self._safe_int(port.get("pvid", 1)),
+                        "frame_types": port.get("frame-types", ""),
+                        "ingress_filtering": port.get("ingress-filtering", "false") == "true",
+                        "disabled": port.get("disabled", "false") == "true",
+                        "inactive": port.get("inactive", "false") == "true",
+                        "comment": port.get("comment", "")
+                    }
+                    for port in ports
+                ]
+        except Exception as e:
+            logger.error(f"Error getting bridge ports: {e}")
+            return []
+
+    def get_bridge_vlans(self) -> List[Dict[str, Any]]:
+        """Get bridge VLAN configurations."""
+        try:
+            with self._connection() as api:
+                vlans = list(api.path("/interface/bridge/vlan"))
+                return [
+                    {
+                        "id": vlan.get(".id", ""),
+                        "bridge": vlan.get("bridge", ""),
+                        "vlan_ids": vlan.get("vlan-ids", ""),
+                        "tagged": vlan.get("tagged", ""),
+                        "untagged": vlan.get("untagged", ""),
+                        "disabled": vlan.get("disabled", "false") == "true",
+                        "comment": vlan.get("comment", "")
+                    }
+                    for vlan in vlans
+                ]
+        except Exception as e:
+            logger.error(f"Error getting bridge VLANs: {e}")
+            return []
+
+    def add_bridge(self, name: str, comment: str = "", vlan_filtering: bool = False) -> bool:
+        """Add a new bridge."""
+        try:
+            with self._connection() as api:
+                params = {"name": name}
+                if comment:
+                    params["comment"] = comment
+                if vlan_filtering:
+                    params["vlan-filtering"] = "yes"
+                api.path("/interface/bridge").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding bridge: {e}")
+            return False
+
+    def add_bridge_port(self, bridge: str, interface: str, pvid: int = 1, comment: str = "") -> bool:
+        """Add an interface to a bridge."""
+        try:
+            with self._connection() as api:
+                params = {
+                    "bridge": bridge,
+                    "interface": interface,
+                    "pvid": str(pvid)
+                }
+                if comment:
+                    params["comment"] = comment
+                api.path("/interface/bridge/port").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding bridge port: {e}")
+            return False
+
+    def delete_bridge_port(self, port_id: str) -> bool:
+        """Remove an interface from a bridge."""
+        try:
+            with self._connection() as api:
+                api.path("/interface/bridge/port").remove(port_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting bridge port: {e}")
+            return False
+
+    def delete_bridge(self, bridge_id: str) -> bool:
+        """Delete a bridge."""
+        try:
+            with self._connection() as api:
+                api.path("/interface/bridge").remove(bridge_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting bridge: {e}")
             return False
 
     # ==================== IP Addresses ====================
@@ -315,8 +639,10 @@ class MikrotikService:
                         "address": addr.get("address", ""),
                         "network": addr.get("network", ""),
                         "interface": addr.get("interface", ""),
+                        "actual_interface": addr.get("actual-interface", ""),
                         "disabled": addr.get("disabled", "false") == "true",
                         "dynamic": addr.get("dynamic", "false") == "true",
+                        "invalid": addr.get("invalid", "false") == "true",
                         "comment": addr.get("comment", "")
                     }
                     for addr in addresses
@@ -360,11 +686,15 @@ class MikrotikService:
                         "id": route.get(".id", ""),
                         "dst_address": route.get("dst-address", ""),
                         "gateway": route.get("gateway", ""),
-                        "distance": int(route.get("distance", 0)),
+                        "gateway_status": route.get("gateway-status", ""),
+                        "distance": self._safe_int(route.get("distance", 0)),
+                        "scope": self._safe_int(route.get("scope", 0)),
                         "interface": route.get("interface", ""),
                         "disabled": route.get("disabled", "false") == "true",
                         "dynamic": route.get("dynamic", "false") == "true",
                         "static": route.get("static", "false") == "true",
+                        "active": route.get("active", "false") == "true",
+                        "routing_table": route.get("routing-table", "main"),
                         "comment": route.get("comment", "")
                     }
                     for route in routes
@@ -414,21 +744,76 @@ class MikrotikService:
                         "action": rule.get("action", ""),
                         "src_address": rule.get("src-address", ""),
                         "dst_address": rule.get("dst-address", ""),
+                        "src_address_list": rule.get("src-address-list", ""),
+                        "dst_address_list": rule.get("dst-address-list", ""),
                         "protocol": rule.get("protocol", ""),
                         "src_port": rule.get("src-port", ""),
                         "dst_port": rule.get("dst-port", ""),
                         "in_interface": rule.get("in-interface", ""),
+                        "in_interface_list": rule.get("in-interface-list", ""),
                         "out_interface": rule.get("out-interface", ""),
+                        "out_interface_list": rule.get("out-interface-list", ""),
+                        "connection_state": rule.get("connection-state", ""),
                         "disabled": rule.get("disabled", "false") == "true",
+                        "invalid": rule.get("invalid", "false") == "true",
+                        "dynamic": rule.get("dynamic", "false") == "true",
                         "comment": rule.get("comment", ""),
-                        "bytes": int(rule.get("bytes", 0)) if rule.get("bytes") else 0,
-                        "packets": int(rule.get("packets", 0)) if rule.get("packets") else 0
+                        "bytes": self._safe_int(rule.get("bytes", 0)),
+                        "packets": self._safe_int(rule.get("packets", 0)),
+                        "log": rule.get("log", "false") == "true",
+                        "log_prefix": rule.get("log-prefix", "")
                     }
                     for rule in rules
                 ]
         except Exception as e:
             logger.error(f"Error getting firewall rules: {e}")
             return []
+
+    def add_firewall_rule(self, chain: str, action: str, src_address: str = None,
+                          dst_address: str = None, protocol: str = None,
+                          src_port: str = None, dst_port: str = None,
+                          in_interface: str = None, out_interface: str = None,
+                          connection_state: str = None, comment: str = None,
+                          disabled: bool = False) -> bool:
+        """Add a firewall filter rule."""
+        try:
+            with self._connection() as api:
+                params = {"chain": chain, "action": action}
+                if src_address:
+                    params["src-address"] = src_address
+                if dst_address:
+                    params["dst-address"] = dst_address
+                if protocol:
+                    params["protocol"] = protocol
+                if src_port:
+                    params["src-port"] = src_port
+                if dst_port:
+                    params["dst-port"] = dst_port
+                if in_interface:
+                    params["in-interface"] = in_interface
+                if out_interface:
+                    params["out-interface"] = out_interface
+                if connection_state:
+                    params["connection-state"] = connection_state
+                if comment:
+                    params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
+                api.path("/ip/firewall/filter").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding firewall rule: {e}")
+            return False
+
+    def delete_firewall_rule(self, rule_id: str) -> bool:
+        """Delete a firewall filter rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/filter").remove(rule_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting firewall rule: {e}")
+            return False
 
     def toggle_firewall_rule(self, rule_id: str, enable: bool) -> bool:
         """Enable or disable a firewall rule."""
@@ -460,9 +845,15 @@ class MikrotikService:
                         "to_addresses": rule.get("to-addresses", ""),
                         "to_ports": rule.get("to-ports", ""),
                         "in_interface": rule.get("in-interface", ""),
+                        "in_interface_list": rule.get("in-interface-list", ""),
                         "out_interface": rule.get("out-interface", ""),
+                        "out_interface_list": rule.get("out-interface-list", ""),
                         "disabled": rule.get("disabled", "false") == "true",
-                        "comment": rule.get("comment", "")
+                        "invalid": rule.get("invalid", "false") == "true",
+                        "dynamic": rule.get("dynamic", "false") == "true",
+                        "comment": rule.get("comment", ""),
+                        "bytes": self._safe_int(rule.get("bytes", 0)),
+                        "packets": self._safe_int(rule.get("packets", 0))
                     }
                     for rule in rules
                 ]
@@ -470,7 +861,87 @@ class MikrotikService:
             logger.error(f"Error getting NAT rules: {e}")
             return []
 
+    def add_nat_rule(self, chain: str, action: str, src_address: str = None,
+                     dst_address: str = None, protocol: str = None,
+                     src_port: str = None, dst_port: str = None,
+                     to_addresses: str = None, to_ports: str = None,
+                     in_interface: str = None, out_interface: str = None,
+                     comment: str = None, disabled: bool = False) -> bool:
+        """Add a NAT rule."""
+        try:
+            with self._connection() as api:
+                params = {"chain": chain, "action": action}
+                if src_address:
+                    params["src-address"] = src_address
+                if dst_address:
+                    params["dst-address"] = dst_address
+                if protocol:
+                    params["protocol"] = protocol
+                if src_port:
+                    params["src-port"] = src_port
+                if dst_port:
+                    params["dst-port"] = dst_port
+                if to_addresses:
+                    params["to-addresses"] = to_addresses
+                if to_ports:
+                    params["to-ports"] = to_ports
+                if in_interface:
+                    params["in-interface"] = in_interface
+                if out_interface:
+                    params["out-interface"] = out_interface
+                if comment:
+                    params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
+                api.path("/ip/firewall/nat").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding NAT rule: {e}")
+            return False
+
+    def delete_nat_rule(self, rule_id: str) -> bool:
+        """Delete a NAT rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/nat").remove(rule_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting NAT rule: {e}")
+            return False
+
+    def toggle_nat_rule(self, rule_id: str, enable: bool) -> bool:
+        """Enable or disable a NAT rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/nat").update(
+                    **{".id": rule_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling NAT rule: {e}")
+            return False
+
     # ==================== DNS ====================
+
+    def get_dns_settings(self) -> Optional[Dict[str, Any]]:
+        """Get DNS server settings."""
+        try:
+            with self._connection() as api:
+                dns = list(api.path("/ip/dns"))
+                if dns:
+                    d = dns[0]
+                    return {
+                        "servers": d.get("servers", ""),
+                        "dynamic_servers": d.get("dynamic-servers", ""),
+                        "allow_remote_requests": d.get("allow-remote-requests", "false") == "true",
+                        "cache_size": self._safe_int(d.get("cache-size", 2048)),
+                        "cache_max_ttl": d.get("cache-max-ttl", ""),
+                        "cache_used": self._safe_int(d.get("cache-used", 0))
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Error getting DNS settings: {e}")
+            return None
 
     def get_dns_static(self) -> List[Dict[str, Any]]:
         """Get static DNS entries."""
@@ -480,12 +951,21 @@ class MikrotikService:
                 return [
                     {
                         "id": entry.get(".id", ""),
-                        "name": entry.get("name", ""),
+                        "name": entry.get("name", entry.get("regexp", "")),
                         "address": entry.get("address", ""),
+                        "cname": entry.get("cname", ""),
+                        "mx_exchange": entry.get("mx-exchange", ""),
+                        "mx_preference": entry.get("mx-preference", ""),
+                        "srv_target": entry.get("srv-target", ""),
+                        "srv_port": entry.get("srv-port", ""),
+                        "text": entry.get("text", ""),
+                        "ns": entry.get("ns", ""),
                         "type": entry.get("type", "A"),
-                        "ttl": entry.get("ttl", ""),
+                        "ttl": entry.get("ttl", "1d"),
                         "disabled": entry.get("disabled", "false") == "true",
                         "dynamic": entry.get("dynamic", "false") == "true",
+                        "regexp": entry.get("regexp", ""),
+                        "forward_to": entry.get("forward-to", ""),
                         "comment": entry.get("comment", "")
                     }
                     for entry in entries
@@ -494,13 +974,63 @@ class MikrotikService:
             logger.error(f"Error getting DNS entries: {e}")
             return []
 
-    def add_dns_static(self, name: str, address: str, ttl: str = "1d", comment: str = "") -> bool:
-        """Add a static DNS entry."""
+    def add_dns_static(self, name: str, record_type: str = "A", address: str = None,
+                       cname: str = None, mx_exchange: str = None, mx_preference: int = None,
+                       text: str = None, ns: str = None, srv_target: str = None,
+                       srv_port: int = None, forward_to: str = None,
+                       ttl: str = "1d", comment: str = "", disabled: bool = False) -> bool:
+        """Add a static DNS entry with support for all record types."""
         try:
             with self._connection() as api:
-                params = {"name": name, "address": address, "ttl": ttl}
+                params = {"name": name, "ttl": ttl}
+
+                if record_type == "A":
+                    if address:
+                        params["address"] = address
+                    params["type"] = "A"
+                elif record_type == "AAAA":
+                    if address:
+                        params["address"] = address
+                    params["type"] = "AAAA"
+                elif record_type == "CNAME":
+                    if cname:
+                        params["cname"] = cname
+                    params["type"] = "CNAME"
+                elif record_type == "MX":
+                    if mx_exchange:
+                        params["mx-exchange"] = mx_exchange
+                    if mx_preference is not None:
+                        params["mx-preference"] = str(mx_preference)
+                    params["type"] = "MX"
+                elif record_type == "TXT":
+                    if text:
+                        params["text"] = text
+                    params["type"] = "TXT"
+                elif record_type == "NS":
+                    if ns:
+                        params["ns"] = ns
+                    params["type"] = "NS"
+                elif record_type == "SRV":
+                    if srv_target:
+                        params["srv-target"] = srv_target
+                    if srv_port is not None:
+                        params["srv-port"] = str(srv_port)
+                    params["type"] = "SRV"
+                elif record_type == "NXDOMAIN":
+                    params["type"] = "NXDOMAIN"
+                elif record_type == "FWD":
+                    if forward_to:
+                        params["forward-to"] = forward_to
+                    params["type"] = "FWD"
+                else:
+                    if address:
+                        params["address"] = address
+
                 if comment:
                     params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
+
                 api.path("/ip/dns/static").add(**params)
                 return True
         except Exception as e:
@@ -517,6 +1047,29 @@ class MikrotikService:
             logger.error(f"Error deleting DNS entry: {e}")
             return False
 
+    def toggle_dns_entry(self, entry_id: str, enable: bool) -> bool:
+        """Enable or disable a DNS entry."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dns/static").update(
+                    **{".id": entry_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling DNS entry: {e}")
+            return False
+
+    def flush_dns_cache(self) -> bool:
+        """Flush DNS cache."""
+        try:
+            with self._connection() as api:
+                cache_path = api.path("/ip/dns/cache")
+                tuple(cache_path("flush"))
+                return True
+        except Exception as e:
+            logger.error(f"Error flushing DNS cache: {e}")
+            return False
+
     # ==================== Queues (QoS) ====================
 
     def get_simple_queues(self) -> List[Dict[str, Any]]:
@@ -529,15 +1082,19 @@ class MikrotikService:
                         "id": queue.get(".id", ""),
                         "name": queue.get("name", ""),
                         "target": queue.get("target", ""),
+                        "parent": queue.get("parent", ""),
                         "max_limit": queue.get("max-limit", ""),
+                        "limit_at": queue.get("limit-at", ""),
                         "burst_limit": queue.get("burst-limit", ""),
                         "burst_threshold": queue.get("burst-threshold", ""),
                         "burst_time": queue.get("burst-time", ""),
-                        "priority": int(queue.get("priority", "8").split("/")[0]),
+                        "priority": self._safe_int(queue.get("priority", "8").split("/")[0]),
                         "disabled": queue.get("disabled", "false") == "true",
+                        "invalid": queue.get("invalid", "false") == "true",
                         "comment": queue.get("comment", ""),
-                        "bytes": int(queue.get("bytes", 0)) if queue.get("bytes") else 0,
-                        "packets": int(queue.get("packets", 0)) if queue.get("packets") else 0
+                        "bytes": self._safe_int(queue.get("bytes", 0)),
+                        "packets": self._safe_int(queue.get("packets", 0)),
+                        "rate": queue.get("rate", "")
                     }
                     for queue in queues
                 ]
@@ -573,9 +1130,13 @@ class MikrotikService:
         """Reboot the router."""
         try:
             with self._connection() as api:
-                api.path("/system").call("reboot")
+                reboot_path = api.path("/system/reboot")
+                tuple(reboot_path())
                 return True
         except Exception as e:
+            # Connection will be closed during reboot, this is expected
+            if "connection" in str(e).lower() or "closed" in str(e).lower():
+                return True
             logger.error(f"Error rebooting: {e}")
             return False
 
@@ -607,6 +1168,8 @@ class MikrotikService:
                         "id": user.get(".id", ""),
                         "name": user.get("name", ""),
                         "group": user.get("group", ""),
+                        "address": user.get("address", ""),
+                        "last_logged_in": user.get("last-logged-in", ""),
                         "disabled": user.get("disabled", "false") == "true",
                         "comment": user.get("comment", "")
                     }
@@ -616,24 +1179,204 @@ class MikrotikService:
             logger.error(f"Error getting users: {e}")
             return []
 
-    def backup_config(self) -> Optional[str]:
+    def backup_config(self, name: str = None, password: str = None) -> Optional[str]:
         """Create a backup and return the file name."""
         try:
             with self._connection() as api:
                 import time
-                filename = f"backup-{int(time.time())}"
-                api.path("/system/backup").call("save", {"name": filename})
-                return f"{filename}.backup"
+                if not name:
+                    name = f"backup-{int(time.time())}"
+
+                params = {"name": name}
+                if password:
+                    params["password"] = password
+
+                backup_path = api.path("/system/backup/save")
+                tuple(backup_path(**params))
+
+                return f"{name}.backup"
         except Exception as e:
             logger.error(f"Error creating backup: {e}")
             return None
+
+    def get_backup_files(self) -> List[Dict[str, Any]]:
+        """List backup files on the router."""
+        try:
+            with self._connection() as api:
+                files = list(api.path("/file"))
+                return [
+                    {
+                        "name": f.get("name", ""),
+                        "size": self._safe_int(f.get("size", 0)),
+                        "creation_time": f.get("creation-time", "")
+                    }
+                    for f in files
+                    if f.get("name", "").endswith(".backup") or f.get("name", "").endswith(".rsc")
+                ]
+        except Exception as e:
+            logger.error(f"Error getting backup files: {e}")
+            return []
 
     def export_config(self) -> Optional[str]:
         """Export configuration as text."""
         try:
             with self._connection() as api:
-                result = list(api.path("/export"))
-                return "\n".join([r.get("ret", "") for r in result]) if result else None
+                config_parts = []
+
+                # System identity
+                try:
+                    identity = list(api.path("/system/identity"))
+                    if identity:
+                        config_parts.append(f"# System Identity: {identity[0].get('name', 'Unknown')}")
+                        config_parts.append(f"/system identity set name=\"{identity[0].get('name', '')}\"")
+                except Exception:
+                    pass
+
+                # IP addresses
+                try:
+                    addresses = list(api.path("/ip/address"))
+                    if addresses:
+                        config_parts.append("\n# IP Addresses")
+                        for addr in addresses:
+                            if addr.get("dynamic", "false") != "true":
+                                line = f"/ip address add address={addr.get('address')} interface={addr.get('interface')}"
+                                if addr.get("comment"):
+                                    line += f' comment="{addr.get("comment")}"'
+                                config_parts.append(line)
+                except Exception:
+                    pass
+
+                # DHCP servers
+                try:
+                    dhcp = list(api.path("/ip/dhcp-server"))
+                    if dhcp:
+                        config_parts.append("\n# DHCP Servers")
+                        for srv in dhcp:
+                            line = f"/ip dhcp-server add name={srv.get('name')} interface={srv.get('interface')} address-pool={srv.get('address-pool')}"
+                            if srv.get("lease-time"):
+                                line += f" lease-time={srv.get('lease-time')}"
+                            config_parts.append(line)
+                except Exception:
+                    pass
+
+                # Firewall filter
+                try:
+                    rules = list(api.path("/ip/firewall/filter"))
+                    if rules:
+                        config_parts.append("\n# Firewall Filter Rules")
+                        for rule in rules:
+                            if rule.get("dynamic", "false") != "true":
+                                line = f"/ip firewall filter add chain={rule.get('chain')} action={rule.get('action')}"
+                                if rule.get("protocol"):
+                                    line += f" protocol={rule.get('protocol')}"
+                                if rule.get("dst-port"):
+                                    line += f" dst-port={rule.get('dst-port')}"
+                                if rule.get("src-address"):
+                                    line += f" src-address={rule.get('src-address')}"
+                                if rule.get("dst-address"):
+                                    line += f" dst-address={rule.get('dst-address')}"
+                                if rule.get("comment"):
+                                    line += f' comment="{rule.get("comment")}"'
+                                config_parts.append(line)
+                except Exception:
+                    pass
+
+                # NAT rules
+                try:
+                    nat = list(api.path("/ip/firewall/nat"))
+                    if nat:
+                        config_parts.append("\n# NAT Rules")
+                        for rule in nat:
+                            if rule.get("dynamic", "false") != "true":
+                                line = f"/ip firewall nat add chain={rule.get('chain')} action={rule.get('action')}"
+                                if rule.get("out-interface"):
+                                    line += f" out-interface={rule.get('out-interface')}"
+                                if rule.get("src-address"):
+                                    line += f" src-address={rule.get('src-address')}"
+                                if rule.get("to-addresses"):
+                                    line += f" to-addresses={rule.get('to-addresses')}"
+                                if rule.get("comment"):
+                                    line += f' comment="{rule.get("comment")}"'
+                                config_parts.append(line)
+                except Exception:
+                    pass
+
+                # Bridges
+                try:
+                    bridges = list(api.path("/interface/bridge"))
+                    if bridges:
+                        config_parts.append("\n# Bridges")
+                        for br in bridges:
+                            line = f"/interface bridge add name={br.get('name')}"
+                            if br.get("vlan-filtering", "false") == "true":
+                                line += " vlan-filtering=yes"
+                            if br.get("comment"):
+                                line += f' comment="{br.get("comment")}"'
+                            config_parts.append(line)
+                except Exception:
+                    pass
+
+                # Bridge ports
+                try:
+                    ports = list(api.path("/interface/bridge/port"))
+                    if ports:
+                        config_parts.append("\n# Bridge Ports")
+                        for port in ports:
+                            line = f"/interface bridge port add bridge={port.get('bridge')} interface={port.get('interface')}"
+                            config_parts.append(line)
+                except Exception:
+                    pass
+
+                # Static routes
+                try:
+                    routes = list(api.path("/ip/route"))
+                    static_routes = [r for r in routes if r.get("static", "false") == "true"]
+                    if static_routes:
+                        config_parts.append("\n# Static Routes")
+                        for route in static_routes:
+                            line = f"/ip route add dst-address={route.get('dst-address')} gateway={route.get('gateway')}"
+                            if route.get("comment"):
+                                line += f' comment="{route.get("comment")}"'
+                            config_parts.append(line)
+                except Exception:
+                    pass
+
+                # DNS static entries
+                try:
+                    dns = list(api.path("/ip/dns/static"))
+                    if dns:
+                        config_parts.append("\n# DNS Static Entries")
+                        for entry in dns:
+                            if entry.get("dynamic", "false") != "true":
+                                line = f"/ip dns static add name={entry.get('name')}"
+                                if entry.get("address"):
+                                    line += f" address={entry.get('address')}"
+                                if entry.get("type"):
+                                    line += f" type={entry.get('type')}"
+                                config_parts.append(line)
+                except Exception:
+                    pass
+
+                return "\n".join(config_parts) if config_parts else "# Empty configuration"
+
         except Exception as e:
             logger.error(f"Error exporting config: {e}")
+            return None
+
+    def get_system_health(self) -> Optional[Dict[str, Any]]:
+        """Get system health information (temperature, voltage, etc.)."""
+        try:
+            with self._connection() as api:
+                health = list(api.path("/system/health"))
+                if health:
+                    h = health[0]
+                    return {
+                        "temperature": h.get("temperature", h.get("cpu-temperature")),
+                        "voltage": h.get("voltage"),
+                        "cpu_temperature": h.get("cpu-temperature"),
+                        "board_temperature": h.get("board-temperature")
+                    }
+                return None
+        except Exception as e:
+            logger.error(f"Error getting system health: {e}")
             return None

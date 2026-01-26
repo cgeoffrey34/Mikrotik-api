@@ -25,6 +25,12 @@ class Router(Base):
     ros_version = Column(String(50), nullable=True)
     firmware_version = Column(String(50), nullable=True)
 
+    # Grouping fields
+    router_type = Column(String(50), nullable=True)  # e.g., "routerboard", "crs", "cap", "ccr"
+    site = Column(String(100), nullable=True)  # e.g., "Paris", "Lyon", "Datacenter A"
+    group = Column(String(100), nullable=True)  # Custom grouping e.g., "Production", "Test"
+    tags = Column(String(500), nullable=True)  # Comma-separated tags
+
     # Metadata
     location = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)

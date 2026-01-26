@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -6,17 +6,14 @@ from typing import List
 from ..database import get_db
 from ..models import Router
 from ..schemas import (
-    DHCPLease,
-    WifiClient,
+    DHCPLease, DHCPServer, DHCPNetwork, IPPool,
+    WifiClient, WirelessInterface, WirelessSecurityProfile,
     Interface,
-    FirewallRule,
-    NATRule,
-    DNSEntry,
-    QueueRule,
-    IPAddress,
-    Route,
-    WirelessInterface,
-    WirelessSecurityProfile
+    Bridge, BridgePort, BridgeVlan,
+    IPAddress, Route,
+    FirewallRule, FirewallRuleCreate, NATRule, NATRuleCreate,
+    DNSEntry, DNSEntryCreate, DNSSettings,
+    QueueRule
 )
 from ..services import MikrotikService
 
@@ -58,12 +55,13 @@ async def add_dhcp_lease(
     address: str,
     mac_address: str,
     server: str = "default",
+    hostname: str = "",
     comment: str = "",
     db: AsyncSession = Depends(get_db)
 ):
     """Add a static DHCP lease."""
     _, service = await get_router_service(router_id, db)
-    success = service.add_dhcp_lease(address, mac_address, server, comment)
+    success = service.add_dhcp_lease(address, mac_address, server, hostname, comment)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to add DHCP lease")
     return {"success": True}
@@ -77,6 +75,55 @@ async def delete_dhcp_lease(router_id: int, lease_id: str, db: AsyncSession = De
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete DHCP lease")
     return {"success": True}
+
+
+@router.post("/dhcp/leases/{lease_id}/make-static")
+async def make_dhcp_lease_static(router_id: int, lease_id: str, db: AsyncSession = Depends(get_db)):
+    """Make a dynamic DHCP lease static."""
+    _, service = await get_router_service(router_id, db)
+    success = service.make_dhcp_lease_static(lease_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to make lease static")
+    return {"success": True}
+
+
+@router.get("/dhcp/servers", response_model=List[DHCPServer])
+async def get_dhcp_servers(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get DHCP servers."""
+    _, service = await get_router_service(router_id, db)
+    servers = service.get_dhcp_servers()
+    return [DHCPServer(**srv) for srv in servers]
+
+
+@router.post("/dhcp/servers/{server_id}/toggle")
+async def toggle_dhcp_server(
+    router_id: int,
+    server_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a DHCP server."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_dhcp_server(server_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle DHCP server")
+    return {"success": True}
+
+
+@router.get("/dhcp/networks", response_model=List[DHCPNetwork])
+async def get_dhcp_networks(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get DHCP network configurations."""
+    _, service = await get_router_service(router_id, db)
+    networks = service.get_dhcp_networks()
+    return [DHCPNetwork(**net) for net in networks]
+
+
+@router.get("/dhcp/pools", response_model=List[IPPool])
+async def get_ip_pools(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get IP pools."""
+    _, service = await get_router_service(router_id, db)
+    pools = service.get_ip_pools()
+    return [IPPool(**pool) for pool in pools]
 
 
 # ==================== WiFi ====================
@@ -95,6 +142,23 @@ async def get_wireless_interfaces(router_id: int, db: AsyncSession = Depends(get
     _, service = await get_router_service(router_id, db)
     interfaces = service.get_wireless_interfaces()
     return [WirelessInterface(**iface) for iface in interfaces]
+
+
+@router.post("/wifi/interfaces/{interface_id}/update")
+async def update_wireless_interface(
+    router_id: int,
+    interface_id: str,
+    ssid: str = None,
+    security_profile: str = None,
+    disabled: bool = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update wireless interface settings."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_wireless_interface(interface_id, ssid, security_profile, disabled)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update wireless interface")
+    return {"success": True}
 
 
 @router.get("/wifi/security-profiles", response_model=List[WirelessSecurityProfile])
@@ -128,6 +192,85 @@ async def toggle_interface(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to toggle interface")
     return {"success": True}
+
+
+# ==================== Bridges ====================
+
+@router.get("/bridges", response_model=List[Bridge])
+async def get_bridges(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get all bridges."""
+    _, service = await get_router_service(router_id, db)
+    bridges = service.get_bridges()
+    return [Bridge(**br) for br in bridges]
+
+
+@router.post("/bridges")
+async def add_bridge(
+    router_id: int,
+    name: str,
+    comment: str = "",
+    vlan_filtering: bool = False,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a new bridge."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_bridge(name, comment, vlan_filtering)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add bridge")
+    return {"success": True}
+
+
+@router.delete("/bridges/{bridge_id}")
+async def delete_bridge(router_id: int, bridge_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a bridge."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_bridge(bridge_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete bridge")
+    return {"success": True}
+
+
+@router.get("/bridges/ports", response_model=List[BridgePort])
+async def get_bridge_ports(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get all bridge ports."""
+    _, service = await get_router_service(router_id, db)
+    ports = service.get_bridge_ports()
+    return [BridgePort(**port) for port in ports]
+
+
+@router.post("/bridges/ports")
+async def add_bridge_port(
+    router_id: int,
+    bridge: str,
+    interface: str,
+    pvid: int = 1,
+    comment: str = "",
+    db: AsyncSession = Depends(get_db)
+):
+    """Add an interface to a bridge."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_bridge_port(bridge, interface, pvid, comment)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add bridge port")
+    return {"success": True}
+
+
+@router.delete("/bridges/ports/{port_id}")
+async def delete_bridge_port(router_id: int, port_id: str, db: AsyncSession = Depends(get_db)):
+    """Remove an interface from a bridge."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_bridge_port(port_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete bridge port")
+    return {"success": True}
+
+
+@router.get("/bridges/vlans", response_model=List[BridgeVlan])
+async def get_bridge_vlans(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get bridge VLAN configurations."""
+    _, service = await get_router_service(router_id, db)
+    vlans = service.get_bridge_vlans()
+    return [BridgeVlan(**vlan) for vlan in vlans]
 
 
 # ==================== IP Addresses ====================
@@ -213,6 +356,43 @@ async def get_firewall_rules(router_id: int, db: AsyncSession = Depends(get_db))
     return [FirewallRule(**rule) for rule in rules]
 
 
+@router.post("/firewall/filter")
+async def add_firewall_rule(
+    router_id: int,
+    rule: FirewallRuleCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a firewall filter rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_firewall_rule(
+        chain=rule.chain,
+        action=rule.action,
+        src_address=rule.src_address,
+        dst_address=rule.dst_address,
+        protocol=rule.protocol,
+        src_port=rule.src_port,
+        dst_port=rule.dst_port,
+        in_interface=rule.in_interface,
+        out_interface=rule.out_interface,
+        connection_state=rule.connection_state,
+        comment=rule.comment,
+        disabled=rule.disabled
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add firewall rule")
+    return {"success": True}
+
+
+@router.delete("/firewall/filter/{rule_id}")
+async def delete_firewall_rule(router_id: int, rule_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a firewall filter rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_firewall_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete firewall rule")
+    return {"success": True}
+
+
 @router.post("/firewall/filter/{rule_id}/toggle")
 async def toggle_firewall_rule(
     router_id: int,
@@ -236,7 +416,70 @@ async def get_nat_rules(router_id: int, db: AsyncSession = Depends(get_db)):
     return [NATRule(**rule) for rule in rules]
 
 
+@router.post("/firewall/nat")
+async def add_nat_rule(
+    router_id: int,
+    rule: NATRuleCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a NAT rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_nat_rule(
+        chain=rule.chain,
+        action=rule.action,
+        src_address=rule.src_address,
+        dst_address=rule.dst_address,
+        protocol=rule.protocol,
+        src_port=rule.src_port,
+        dst_port=rule.dst_port,
+        to_addresses=rule.to_addresses,
+        to_ports=rule.to_ports,
+        in_interface=rule.in_interface,
+        out_interface=rule.out_interface,
+        comment=rule.comment,
+        disabled=rule.disabled
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add NAT rule")
+    return {"success": True}
+
+
+@router.delete("/firewall/nat/{rule_id}")
+async def delete_nat_rule(router_id: int, rule_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a NAT rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_nat_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete NAT rule")
+    return {"success": True}
+
+
+@router.post("/firewall/nat/{rule_id}/toggle")
+async def toggle_nat_rule(
+    router_id: int,
+    rule_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a NAT rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_nat_rule(rule_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle NAT rule")
+    return {"success": True}
+
+
 # ==================== DNS ====================
+
+@router.get("/dns/settings", response_model=DNSSettings)
+async def get_dns_settings(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get DNS server settings."""
+    _, service = await get_router_service(router_id, db)
+    settings = service.get_dns_settings()
+    if not settings:
+        raise HTTPException(status_code=500, detail="Failed to get DNS settings")
+    return DNSSettings(**settings)
+
 
 @router.get("/dns/static", response_model=List[DNSEntry])
 async def get_dns_entries(router_id: int, db: AsyncSession = Depends(get_db)):
@@ -249,15 +492,27 @@ async def get_dns_entries(router_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/dns/static")
 async def add_dns_entry(
     router_id: int,
-    name: str,
-    address: str,
-    ttl: str = "1d",
-    comment: str = "",
+    entry: DNSEntryCreate,
     db: AsyncSession = Depends(get_db)
 ):
-    """Add a static DNS entry."""
+    """Add a static DNS entry (supports A, AAAA, CNAME, MX, TXT, NS, SRV, NXDOMAIN, FWD)."""
     _, service = await get_router_service(router_id, db)
-    success = service.add_dns_static(name, address, ttl, comment)
+    success = service.add_dns_static(
+        name=entry.name,
+        record_type=entry.record_type,
+        address=entry.address,
+        cname=entry.cname,
+        mx_exchange=entry.mx_exchange,
+        mx_preference=entry.mx_preference,
+        text=entry.text,
+        ns=entry.ns,
+        srv_target=entry.srv_target,
+        srv_port=entry.srv_port,
+        forward_to=entry.forward_to,
+        ttl=entry.ttl,
+        comment=entry.comment,
+        disabled=entry.disabled
+    )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to add DNS entry")
     return {"success": True}
@@ -270,6 +525,31 @@ async def delete_dns_entry(router_id: int, entry_id: str, db: AsyncSession = Dep
     success = service.delete_dns_static(entry_id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete DNS entry")
+    return {"success": True}
+
+
+@router.post("/dns/static/{entry_id}/toggle")
+async def toggle_dns_entry(
+    router_id: int,
+    entry_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a DNS entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_dns_entry(entry_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle DNS entry")
+    return {"success": True}
+
+
+@router.post("/dns/cache/flush")
+async def flush_dns_cache(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Flush DNS cache."""
+    _, service = await get_router_service(router_id, db)
+    success = service.flush_dns_cache()
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to flush DNS cache")
     return {"success": True}
 
 
@@ -327,13 +607,26 @@ async def reboot_router(router_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/system/backup")
-async def create_backup(router_id: int, db: AsyncSession = Depends(get_db)):
+async def create_backup(
+    router_id: int,
+    name: str = None,
+    password: str = None,
+    db: AsyncSession = Depends(get_db)
+):
     """Create a backup on the router."""
     _, service = await get_router_service(router_id, db)
-    filename = service.backup_config()
+    filename = service.backup_config(name, password)
     if not filename:
         raise HTTPException(status_code=500, detail="Failed to create backup")
     return {"success": True, "filename": filename}
+
+
+@router.get("/system/backups")
+async def get_backup_files(router_id: int, db: AsyncSession = Depends(get_db)):
+    """List backup files on the router."""
+    _, service = await get_router_service(router_id, db)
+    files = service.get_backup_files()
+    return files
 
 
 @router.get("/system/export")
@@ -344,3 +637,11 @@ async def export_config(router_id: int, db: AsyncSession = Depends(get_db)):
     if not config:
         raise HTTPException(status_code=500, detail="Failed to export configuration")
     return {"success": True, "config": config}
+
+
+@router.get("/system/health")
+async def get_system_health(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get system health information."""
+    _, service = await get_router_service(router_id, db)
+    health = service.get_system_health()
+    return health or {}
