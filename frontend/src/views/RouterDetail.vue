@@ -77,7 +77,8 @@ import {
   ServerIcon,
   QueueListIcon,
   Cog6ToothIcon,
-  MapIcon
+  MapIcon,
+  Square3Stack3DIcon
 } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
@@ -90,6 +91,7 @@ const refreshing = ref(false)
 const tabs = [
   { name: 'Vue d\'ensemble', to: `/routers/${route.params.id}`, icon: ChartBarIcon },
   { name: 'Interfaces', to: `/routers/${route.params.id}/interfaces`, icon: ComputerDesktopIcon },
+  { name: 'Bridges', to: `/routers/${route.params.id}/bridges`, icon: Square3Stack3DIcon },
   { name: 'DHCP', to: `/routers/${route.params.id}/dhcp`, icon: ServerIcon },
   { name: 'WiFi', to: `/routers/${route.params.id}/wifi`, icon: WifiIcon },
   { name: 'Firewall', to: `/routers/${route.params.id}/firewall`, icon: ShieldCheckIcon },

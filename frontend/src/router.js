@@ -27,6 +27,11 @@ const routes = [
         component: () => import('./views/router/Interfaces.vue')
       },
       {
+        path: 'bridges',
+        name: 'RouterBridges',
+        component: () => import('./views/router/Bridges.vue')
+      },
+      {
         path: 'dhcp',
         name: 'RouterDHCP',
         component: () => import('./views/router/DHCP.vue')
