@@ -85,6 +85,10 @@ async def create_router(router_data: RouterCreate, db: AsyncSession = Depends(ge
         use_ssl=router_data.use_ssl,
         location=router_data.location,
         notes=router_data.notes,
+        router_type=router_data.router_type,
+        site=router_data.site,
+        group=router_data.group,
+        tags=router_data.tags,
         is_online=test_result["success"]
     )
 

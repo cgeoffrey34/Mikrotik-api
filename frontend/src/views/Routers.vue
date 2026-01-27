@@ -112,9 +112,41 @@
           </div>
         </div>
 
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Emplacement</label>
+            <input v-model="form.location" type="text" class="input" placeholder="Ex: Salle serveur" />
+          </div>
+          <div>
+            <label class="label">Site</label>
+            <input v-model="form.site" type="text" class="input" placeholder="Ex: Paris, Lyon" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Type</label>
+            <select v-model="form.router_type" class="input">
+              <option value="">Non defini</option>
+              <option value="routerboard">RouterBoard</option>
+              <option value="crs">CRS (Switch)</option>
+              <option value="ccr">CCR (Core Router)</option>
+              <option value="cap">cAP (WiFi AP)</option>
+              <option value="hex">hEX</option>
+              <option value="rb">RB</option>
+              <option value="chr">CHR (Cloud)</option>
+              <option value="other">Autre</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Groupe</label>
+            <input v-model="form.group" type="text" class="input" placeholder="Ex: Production, Test" />
+          </div>
+        </div>
+
         <div>
-          <label class="label">Emplacement</label>
-          <input v-model="form.location" type="text" class="input" placeholder="Ex: Salle serveur" />
+          <label class="label">Tags (separes par des virgules)</label>
+          <input v-model="form.tags" type="text" class="input" placeholder="Ex: wifi, backbone, edge" />
         </div>
 
         <div>
@@ -186,6 +218,10 @@ const form = reactive({
   username: 'admin',
   password: '',
   location: '',
+  site: '',
+  router_type: '',
+  group: '',
+  tags: '',
   notes: '',
   use_ssl: false
 })
@@ -197,6 +233,10 @@ function resetForm() {
   form.username = 'admin'
   form.password = ''
   form.location = ''
+  form.site = ''
+  form.router_type = ''
+  form.group = ''
+  form.tags = ''
   form.notes = ''
   form.use_ssl = false
 }
@@ -209,6 +249,10 @@ function editRouter(router) {
   form.username = router.username
   form.password = ''
   form.location = router.location || ''
+  form.site = router.site || ''
+  form.router_type = router.router_type || ''
+  form.group = router.group || ''
+  form.tags = router.tags || ''
   form.notes = router.notes || ''
   form.use_ssl = router.use_ssl
   showAddModal.value = true
