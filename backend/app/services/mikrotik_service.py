@@ -88,14 +88,18 @@ class MikrotikService:
 
     def test_connection(self) -> Dict[str, Any]:
         """Test connection and return router identity."""
+        logger.info(f"Testing connection to {self.host}:{self.port} (SSL={self.use_ssl}, user={self.username})")
         try:
             with self._connection() as api:
                 identity = list(api.path("/system/identity"))
+                name = identity[0].get("name", "Unknown") if identity else "Unknown"
+                logger.info(f"Successfully connected to {self.host}:{self.port} - Identity: {name}")
                 return {
                     "success": True,
-                    "identity": identity[0].get("name", "Unknown") if identity else "Unknown"
+                    "identity": name
                 }
         except Exception as e:
+            logger.error(f"Failed to connect to {self.host}:{self.port} - {type(e).__name__}: {e}")
             return {"success": False, "error": str(e)}
 
     def get_system_resource(self) -> Optional[Dict[str, Any]]:

@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List
 from datetime import datetime, timedelta
+import logging
 
 from ..database import get_db
 from ..models import Router, RouterStats
@@ -16,6 +17,8 @@ from ..schemas import (
     RouterDetailResponse
 )
 from ..services import MikrotikService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/routers", tags=["routers"])
 
@@ -64,6 +67,8 @@ async def get_router(router_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=RouterResponse, status_code=status.HTTP_201_CREATED)
 async def create_router(router_data: RouterCreate, db: AsyncSession = Depends(get_db)):
     """Add a new router."""
+    logger.info(f"Creating router '{router_data.name}' at {router_data.ip_address}:{router_data.api_port}")
+
     # Test connection first
     service = MikrotikService(
         host=router_data.ip_address,
@@ -74,6 +79,7 @@ async def create_router(router_data: RouterCreate, db: AsyncSession = Depends(ge
     )
 
     test_result = service.test_connection()
+    logger.info(f"Connection test for '{router_data.name}': {test_result}")
 
     # Create router record
     new_router = Router(
@@ -158,6 +164,8 @@ async def test_router_connection(router_id: int, db: AsyncSession = Depends(get_
     if not router_obj:
         raise HTTPException(status_code=404, detail="Router not found")
 
+    logger.info(f"Testing connection for router #{router_id} ({router_obj.name}) at {router_obj.ip_address}:{router_obj.api_port}")
+
     service = MikrotikService(
         host=router_obj.ip_address,
         username=router_obj.username,
@@ -167,6 +175,7 @@ async def test_router_connection(router_id: int, db: AsyncSession = Depends(get_
     )
 
     test_result = service.test_connection()
+    logger.info(f"Connection test for router #{router_id} ({router_obj.name}): {test_result}")
 
     # Update router status
     router_obj.is_online = test_result["success"]

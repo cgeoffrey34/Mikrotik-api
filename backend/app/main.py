@@ -6,6 +6,7 @@ import logging
 from .config import get_settings
 from .database import init_db
 from .api import routers_router, mikrotik_router
+from .scheduler import start_scheduler, stop_scheduler
 
 settings = get_settings()
 
@@ -24,9 +25,12 @@ async def lifespan(app: FastAPI):
     logger.info("Starting Mikrotik Management API...")
     await init_db()
     logger.info("Database initialized")
+    start_scheduler()
+    logger.info("Background scheduler started")
     yield
     # Shutdown
     logger.info("Shutting down...")
+    stop_scheduler()
 
 
 app = FastAPI(
