@@ -680,25 +680,33 @@ class MikrotikService:
 
     # ==================== Routes ====================
 
+    def _is_true(self, value) -> bool:
+        """Check if a RouterOS API value is truthy (handles both bool and str)."""
+        if isinstance(value, bool):
+            return value
+        return str(value).lower() == "true"
+
     def get_routes(self) -> List[Dict[str, Any]]:
         """Get all routes."""
         try:
             with self._connection() as api:
                 routes = list(api.path("/ip/route"))
                 result = []
+                if routes:
+                    logger.info(f"Sample route raw data: {dict(routes[0])}")
                 for route in routes:
-                    is_static = route.get("static", "false") == "true"
-                    is_dynamic = route.get("dynamic", "false") == "true"
-                    is_connect = route.get("connect", "false") == "true"
-                    is_ospf = route.get("ospf", "false") == "true"
-                    is_bgp = route.get("bgp", "false") == "true"
-                    is_rip = route.get("rip", "false") == "true"
-                    is_dhcp = route.get("dhcp", "false") == "true"
-                    is_vpn = route.get("vpn", "false") == "true"
-                    is_modem = route.get("modem", "false") == "true"
+                    is_static = self._is_true(route.get("static", False))
+                    is_dynamic = self._is_true(route.get("dynamic", False))
+                    is_connect = self._is_true(route.get("connect", False))
+                    is_ospf = self._is_true(route.get("ospf", False))
+                    is_bgp = self._is_true(route.get("bgp", False))
+                    is_rip = self._is_true(route.get("rip", False))
+                    is_dhcp = self._is_true(route.get("dhcp", False))
+                    is_vpn = self._is_true(route.get("vpn", False))
+                    is_modem = self._is_true(route.get("modem", False))
 
                     # Determine route type
-                    gw_status = route.get("gateway-status", "").lower()
+                    gw_status = route.get("gateway-status", "").lower() if isinstance(route.get("gateway-status"), str) else ""
                     if is_connect:
                         route_type = "connected"
                     elif is_static:
@@ -728,11 +736,11 @@ class MikrotikService:
                         "distance": self._safe_int(route.get("distance", 0)),
                         "scope": self._safe_int(route.get("scope", 0)),
                         "interface": route.get("interface", ""),
-                        "disabled": route.get("disabled", "false") == "true",
+                        "disabled": self._is_true(route.get("disabled", False)),
                         "dynamic": is_dynamic,
                         "static": is_static,
                         "connect": is_connect,
-                        "active": route.get("active", "false") == "true",
+                        "active": self._is_true(route.get("active", False)),
                         "route_type": route_type,
                         "routing_table": route.get("routing-table", "main"),
                         "comment": route.get("comment", "")
