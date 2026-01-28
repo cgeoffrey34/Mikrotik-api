@@ -33,6 +33,8 @@ from .router import (
     DNSEntry,
     DNSEntryCreate,
     DNSSettings,
+    DNSSettingsUpdate,
+    DNSCacheEntry,
     QueueRule
 )
 
@@ -71,5 +73,7 @@ __all__ = [
     "DNSEntry",
     "DNSEntryCreate",
     "DNSSettings",
+    "DNSSettingsUpdate",
+    "DNSCacheEntry",
     "QueueRule"
 ]

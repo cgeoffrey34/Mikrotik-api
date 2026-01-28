@@ -14,7 +14,7 @@ from ..schemas import (
     FirewallRule, FirewallRuleCreate, NATRule, NATRuleCreate,
     MangleRule, MangleRuleCreate, RawRule, RawRuleCreate,
     ServicePort, ConnectionEntry, AddressListEntry, AddressListEntryCreate,
-    DNSEntry, DNSEntryCreate, DNSSettings,
+    DNSEntry, DNSEntryCreate, DNSSettings, DNSSettingsUpdate, DNSCacheEntry,
     QueueRule
 )
 from ..services import MikrotikService
@@ -743,6 +743,34 @@ async def flush_dns_cache(router_id: int, db: AsyncSession = Depends(get_db)):
     success = service.flush_dns_cache()
     if not success:
         raise HTTPException(status_code=500, detail="Failed to flush DNS cache")
+    return {"success": True}
+
+
+@router.get("/dns/cache")
+async def get_dns_cache(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get DNS cache entries."""
+    _, service = await get_router_service(router_id, db)
+    return service.get_dns_cache()
+
+
+@router.put("/dns/settings")
+async def update_dns_settings(
+    router_id: int,
+    settings: DNSSettingsUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update DNS server settings."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_dns_settings(
+        servers=settings.servers,
+        allow_remote_requests=settings.allow_remote_requests,
+        cache_size=settings.cache_size,
+        cache_max_ttl=settings.cache_max_ttl,
+        use_doh_server=settings.use_doh_server,
+        verify_doh_cert=settings.verify_doh_cert
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update DNS settings")
     return {"success": True}
 
 

@@ -1354,12 +1354,17 @@ class MikrotikService:
                 if dns:
                     d = dns[0]
                     return {
-                        "servers": d.get("servers", ""),
-                        "dynamic_servers": d.get("dynamic-servers", ""),
-                        "allow_remote_requests": d.get("allow-remote-requests", "false") == "true",
+                        "servers": self._safe_str(d.get("servers", "")),
+                        "dynamic_servers": self._safe_str(d.get("dynamic-servers", "")),
+                        "allow_remote_requests": self._is_true(d.get("allow-remote-requests", False)),
                         "cache_size": self._safe_int(d.get("cache-size", 2048)),
-                        "cache_max_ttl": d.get("cache-max-ttl", ""),
-                        "cache_used": self._safe_int(d.get("cache-used", 0))
+                        "cache_max_ttl": self._safe_str(d.get("cache-max-ttl", "1w")),
+                        "cache_used": self._safe_int(d.get("cache-used", 0)),
+                        "use_doh_server": self._safe_str(d.get("use-doh-server", "")),
+                        "verify_doh_cert": self._is_true(d.get("verify-doh-cert", False)),
+                        "max_udp_packet_size": self._safe_int(d.get("max-udp-packet-size", 4096)),
+                        "max_concurrent_queries": self._safe_int(d.get("max-concurrent-queries", 100)),
+                        "max_concurrent_tcp_sessions": self._safe_int(d.get("max-concurrent-tcp-sessions", 20)),
                     }
                 return None
         except Exception as e:
@@ -1491,6 +1496,58 @@ class MikrotikService:
                 return True
         except Exception as e:
             logger.error(f"Error flushing DNS cache: {e}")
+            return False
+
+    def get_dns_cache(self) -> List[Dict[str, Any]]:
+        """Get DNS cache entries."""
+        try:
+            with self._connection() as api:
+                cache_entries = list(api.path("/ip/dns/cache"))
+                result = []
+                for entry in cache_entries:
+                    try:
+                        result.append({
+                            "id": entry.get(".id", ""),
+                            "name": self._safe_str(entry.get("name", "")),
+                            "type": self._safe_str(entry.get("type", "")),
+                            "data": self._safe_str(entry.get("data", "")),
+                            "ttl": self._safe_str(entry.get("ttl", "")),
+                            "static": self._is_true(entry.get("static", False)),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing DNS cache entry: {e}")
+                        continue
+                return result
+        except Exception as e:
+            logger.error(f"Error getting DNS cache: {e}")
+            return []
+
+    def update_dns_settings(self, servers: str = None, allow_remote_requests: bool = None,
+                           cache_size: int = None, cache_max_ttl: str = None,
+                           use_doh_server: str = None, verify_doh_cert: bool = None) -> bool:
+        """Update DNS server settings."""
+        try:
+            with self._connection() as api:
+                params = {}
+
+                if servers is not None:
+                    params["servers"] = servers
+                if allow_remote_requests is not None:
+                    params["allow-remote-requests"] = "yes" if allow_remote_requests else "no"
+                if cache_size is not None:
+                    params["cache-size"] = str(cache_size)
+                if cache_max_ttl is not None:
+                    params["cache-max-ttl"] = cache_max_ttl
+                if use_doh_server is not None:
+                    params["use-doh-server"] = use_doh_server
+                if verify_doh_cert is not None:
+                    params["verify-doh-cert"] = "yes" if verify_doh_cert else "no"
+
+                if params:
+                    api.path("/ip/dns").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating DNS settings: {e}")
             return False
 
     # ==================== Queues (QoS) ====================

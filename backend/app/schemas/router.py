@@ -549,6 +549,29 @@ class DNSSettings(BaseModel):
     cache_size: Optional[int] = None
     cache_max_ttl: Optional[str] = None
     cache_used: Optional[int] = None
+    use_doh_server: Optional[str] = None
+    verify_doh_cert: bool = False
+    max_udp_packet_size: Optional[int] = None
+    max_concurrent_queries: Optional[int] = None
+    max_concurrent_tcp_sessions: Optional[int] = None
+
+
+class DNSSettingsUpdate(BaseModel):
+    servers: Optional[str] = None
+    allow_remote_requests: Optional[bool] = None
+    cache_size: Optional[int] = None
+    cache_max_ttl: Optional[str] = None
+    use_doh_server: Optional[str] = None
+    verify_doh_cert: Optional[bool] = None
+
+
+class DNSCacheEntry(BaseModel):
+    id: str
+    name: str
+    type: str
+    data: str
+    ttl: Optional[str] = None
+    static: bool = False
 
 
 # QoS schemas
