@@ -1134,8 +1134,8 @@ class MikrotikService:
         """Reboot the router."""
         try:
             with self._connection() as api:
-                reboot_path = api.path("/system/reboot")
-                tuple(reboot_path())
+                system_path = api.path("/system")
+                tuple(system_path("reboot"))
                 return True
         except Exception as e:
             # Connection will be closed during reboot, this is expected
@@ -1195,8 +1195,8 @@ class MikrotikService:
                 if password:
                     params["password"] = password
 
-                backup_path = api.path("/system/backup/save")
-                tuple(backup_path(**params))
+                backup_path = api.path("/system/backup")
+                tuple(backup_path("save", **params))
 
                 return f"{name}.backup"
         except Exception as e:

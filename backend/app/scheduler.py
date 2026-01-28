@@ -51,6 +51,21 @@ async def poll_all_routers():
                             online_count += 1
                             router_obj.last_seen = datetime.utcnow()
 
+                            # Populate missing routerboard info (model, serial, firmware)
+                            if not router_obj.model or not router_obj.serial_number or not router_obj.firmware_version:
+                                try:
+                                    rb_info = service.get_routerboard_info()
+                                    if rb_info:
+                                        if not router_obj.model and rb_info.get("model"):
+                                            router_obj.model = rb_info["model"]
+                                        if not router_obj.serial_number and rb_info.get("serial_number"):
+                                            router_obj.serial_number = rb_info["serial_number"]
+                                        if not router_obj.firmware_version and rb_info.get("firmware"):
+                                            router_obj.firmware_version = rb_info["firmware"]
+                                        logger.info(f"Updated routerboard info for '{router_obj.name}': model={router_obj.model}, serial={router_obj.serial_number}")
+                                except Exception as e:
+                                    logger.warning(f"Failed to get routerboard info for '{router_obj.name}': {e}")
+
                             # Collect stats for online routers
                             try:
                                 resource = service.get_system_resource()
@@ -74,6 +89,10 @@ async def poll_all_routers():
                                     db.add(stats)
 
                                     router_obj.ros_version = resource.get("version")
+
+                                    # Fallback: use board_name from resource if model still empty
+                                    if not router_obj.model and resource.get("board_name"):
+                                        router_obj.model = resource["board_name"]
                             except Exception as e:
                                 logger.warning(f"Failed to collect stats for '{router_obj.name}': {e}")
                         else:

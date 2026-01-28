@@ -234,6 +234,19 @@ async def refresh_router_stats(router_id: int, db: AsyncSession = Depends(get_db
     router_obj.last_seen = datetime.utcnow()
     router_obj.ros_version = resource.get("version")
 
+    # Populate missing routerboard info
+    if not router_obj.model or not router_obj.serial_number or not router_obj.firmware_version:
+        rb_info = service.get_routerboard_info()
+        if rb_info:
+            if not router_obj.model:
+                router_obj.model = rb_info.get("model") or resource.get("board_name")
+            if not router_obj.serial_number:
+                router_obj.serial_number = rb_info.get("serial_number")
+            if not router_obj.firmware_version:
+                router_obj.firmware_version = rb_info.get("firmware")
+        elif not router_obj.model and resource.get("board_name"):
+            router_obj.model = resource["board_name"]
+
     await db.commit()
     await db.refresh(stats)
 
