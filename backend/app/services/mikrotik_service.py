@@ -686,6 +686,16 @@ class MikrotikService:
             return value
         return str(value).lower() == "true"
 
+    def _safe_str(self, value, default="") -> str:
+        """Safely convert a RouterOS API value to string (handles lists, ints, bools)."""
+        if value is None:
+            return default
+        if isinstance(value, (list, tuple)):
+            return ",".join(str(v) for v in value)
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
     def get_routes(self) -> List[Dict[str, Any]]:
         """Get all routes."""
         try:
@@ -779,39 +789,48 @@ class MikrotikService:
 
     # ==================== Firewall ====================
 
+    def _parse_firewall_rule(self, rule: Dict) -> Dict[str, Any]:
+        """Parse a single firewall filter rule from RouterOS API data."""
+        return {
+            "id": rule.get(".id", ""),
+            "chain": self._safe_str(rule.get("chain")),
+            "action": self._safe_str(rule.get("action")),
+            "src_address": self._safe_str(rule.get("src-address")),
+            "dst_address": self._safe_str(rule.get("dst-address")),
+            "src_address_list": self._safe_str(rule.get("src-address-list")),
+            "dst_address_list": self._safe_str(rule.get("dst-address-list")),
+            "protocol": self._safe_str(rule.get("protocol")),
+            "src_port": self._safe_str(rule.get("src-port")),
+            "dst_port": self._safe_str(rule.get("dst-port")),
+            "in_interface": self._safe_str(rule.get("in-interface")),
+            "in_interface_list": self._safe_str(rule.get("in-interface-list")),
+            "out_interface": self._safe_str(rule.get("out-interface")),
+            "out_interface_list": self._safe_str(rule.get("out-interface-list")),
+            "connection_state": self._safe_str(rule.get("connection-state")),
+            "disabled": self._is_true(rule.get("disabled", False)),
+            "invalid": self._is_true(rule.get("invalid", False)),
+            "dynamic": self._is_true(rule.get("dynamic", False)),
+            "comment": self._safe_str(rule.get("comment")),
+            "bytes": self._safe_int(rule.get("bytes", 0)),
+            "packets": self._safe_int(rule.get("packets", 0)),
+            "log": self._is_true(rule.get("log", False)),
+            "log_prefix": self._safe_str(rule.get("log-prefix")),
+        }
+
     def get_firewall_filter_rules(self) -> List[Dict[str, Any]]:
         """Get all firewall filter rules."""
         try:
             with self._connection() as api:
                 rules = list(api.path("/ip/firewall/filter"))
-                return [
-                    {
-                        "id": rule.get(".id", ""),
-                        "chain": rule.get("chain", ""),
-                        "action": rule.get("action", ""),
-                        "src_address": rule.get("src-address", ""),
-                        "dst_address": rule.get("dst-address", ""),
-                        "src_address_list": rule.get("src-address-list", ""),
-                        "dst_address_list": rule.get("dst-address-list", ""),
-                        "protocol": rule.get("protocol", ""),
-                        "src_port": rule.get("src-port", ""),
-                        "dst_port": rule.get("dst-port", ""),
-                        "in_interface": rule.get("in-interface", ""),
-                        "in_interface_list": rule.get("in-interface-list", ""),
-                        "out_interface": rule.get("out-interface", ""),
-                        "out_interface_list": rule.get("out-interface-list", ""),
-                        "connection_state": rule.get("connection-state", ""),
-                        "disabled": self._is_true(rule.get("disabled", False)),
-                        "invalid": self._is_true(rule.get("invalid", False)),
-                        "dynamic": self._is_true(rule.get("dynamic", False)),
-                        "comment": rule.get("comment", ""),
-                        "bytes": self._safe_int(rule.get("bytes", 0)),
-                        "packets": self._safe_int(rule.get("packets", 0)),
-                        "log": self._is_true(rule.get("log", False)),
-                        "log_prefix": rule.get("log-prefix", "")
-                    }
-                    for rule in rules
-                ]
+                if rules:
+                    logger.info(f"Filter: {len(rules)} rules, sample raw: {dict(rules[0])}")
+                result = []
+                for rule in rules:
+                    try:
+                        result.append(self._parse_firewall_rule(rule))
+                    except Exception as e:
+                        logger.error(f"Error parsing filter rule {rule.get('.id', '?')}: {e} - raw: {dict(rule)}")
+                return result
         except Exception as e:
             logger.error(f"Error getting firewall rules: {e}")
             return []
@@ -879,31 +898,36 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 rules = list(api.path("/ip/firewall/nat"))
-                return [
-                    {
-                        "id": rule.get(".id", ""),
-                        "chain": rule.get("chain", ""),
-                        "action": rule.get("action", ""),
-                        "src_address": rule.get("src-address", ""),
-                        "dst_address": rule.get("dst-address", ""),
-                        "protocol": rule.get("protocol", ""),
-                        "src_port": rule.get("src-port", ""),
-                        "dst_port": rule.get("dst-port", ""),
-                        "to_addresses": rule.get("to-addresses", ""),
-                        "to_ports": rule.get("to-ports", ""),
-                        "in_interface": rule.get("in-interface", ""),
-                        "in_interface_list": rule.get("in-interface-list", ""),
-                        "out_interface": rule.get("out-interface", ""),
-                        "out_interface_list": rule.get("out-interface-list", ""),
-                        "disabled": self._is_true(rule.get("disabled", False)),
-                        "invalid": self._is_true(rule.get("invalid", False)),
-                        "dynamic": self._is_true(rule.get("dynamic", False)),
-                        "comment": rule.get("comment", ""),
-                        "bytes": self._safe_int(rule.get("bytes", 0)),
-                        "packets": self._safe_int(rule.get("packets", 0))
-                    }
-                    for rule in rules
-                ]
+                if rules:
+                    logger.info(f"NAT: {len(rules)} rules, sample raw: {dict(rules[0])}")
+                result = []
+                for rule in rules:
+                    try:
+                        result.append({
+                            "id": rule.get(".id", ""),
+                            "chain": self._safe_str(rule.get("chain")),
+                            "action": self._safe_str(rule.get("action")),
+                            "src_address": self._safe_str(rule.get("src-address")),
+                            "dst_address": self._safe_str(rule.get("dst-address")),
+                            "protocol": self._safe_str(rule.get("protocol")),
+                            "src_port": self._safe_str(rule.get("src-port")),
+                            "dst_port": self._safe_str(rule.get("dst-port")),
+                            "to_addresses": self._safe_str(rule.get("to-addresses")),
+                            "to_ports": self._safe_str(rule.get("to-ports")),
+                            "in_interface": self._safe_str(rule.get("in-interface")),
+                            "in_interface_list": self._safe_str(rule.get("in-interface-list")),
+                            "out_interface": self._safe_str(rule.get("out-interface")),
+                            "out_interface_list": self._safe_str(rule.get("out-interface-list")),
+                            "disabled": self._is_true(rule.get("disabled", False)),
+                            "invalid": self._is_true(rule.get("invalid", False)),
+                            "dynamic": self._is_true(rule.get("dynamic", False)),
+                            "comment": self._safe_str(rule.get("comment")),
+                            "bytes": self._safe_int(rule.get("bytes", 0)),
+                            "packets": self._safe_int(rule.get("packets", 0)),
+                        })
+                    except Exception as e:
+                        logger.error(f"Error parsing NAT rule {rule.get('.id', '?')}: {e} - raw: {dict(rule)}")
+                return result
         except Exception as e:
             logger.error(f"Error getting NAT rules: {e}")
             return []
@@ -975,38 +999,46 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 rules = list(api.path("/ip/firewall/mangle"))
-                return [{
-                    "id": r.get(".id", ""),
-                    "chain": r.get("chain", ""),
-                    "action": r.get("action", ""),
-                    "src_address": r.get("src-address", ""),
-                    "dst_address": r.get("dst-address", ""),
-                    "src_address_list": r.get("src-address-list", ""),
-                    "dst_address_list": r.get("dst-address-list", ""),
-                    "protocol": r.get("protocol", ""),
-                    "src_port": r.get("src-port", ""),
-                    "dst_port": r.get("dst-port", ""),
-                    "in_interface": r.get("in-interface", ""),
-                    "in_interface_list": r.get("in-interface-list", ""),
-                    "out_interface": r.get("out-interface", ""),
-                    "out_interface_list": r.get("out-interface-list", ""),
-                    "connection_state": r.get("connection-state", ""),
-                    "new_packet_mark": r.get("new-packet-mark", ""),
-                    "new_connection_mark": r.get("new-connection-mark", ""),
-                    "new_routing_mark": r.get("new-routing-mark", ""),
-                    "passthrough": self._is_true(r.get("passthrough", True)),
-                    "disabled": self._is_true(r.get("disabled", False)),
-                    "invalid": self._is_true(r.get("invalid", False)),
-                    "dynamic": self._is_true(r.get("dynamic", False)),
-                    "comment": r.get("comment", ""),
-                    "bytes": self._safe_int(r.get("bytes", 0)),
-                    "packets": self._safe_int(r.get("packets", 0)),
-                    "log": self._is_true(r.get("log", False)),
-                    "log_prefix": r.get("log-prefix", ""),
-                    "connection_mark": r.get("connection-mark", ""),
-                    "packet_mark": r.get("packet-mark", ""),
-                    "routing_mark": r.get("routing-mark", ""),
-                } for r in rules]
+                if rules:
+                    logger.info(f"Mangle: {len(rules)} rules, sample raw: {dict(rules[0])}")
+                result = []
+                for r in rules:
+                    try:
+                        result.append({
+                            "id": r.get(".id", ""),
+                            "chain": self._safe_str(r.get("chain")),
+                            "action": self._safe_str(r.get("action")),
+                            "src_address": self._safe_str(r.get("src-address")),
+                            "dst_address": self._safe_str(r.get("dst-address")),
+                            "src_address_list": self._safe_str(r.get("src-address-list")),
+                            "dst_address_list": self._safe_str(r.get("dst-address-list")),
+                            "protocol": self._safe_str(r.get("protocol")),
+                            "src_port": self._safe_str(r.get("src-port")),
+                            "dst_port": self._safe_str(r.get("dst-port")),
+                            "in_interface": self._safe_str(r.get("in-interface")),
+                            "in_interface_list": self._safe_str(r.get("in-interface-list")),
+                            "out_interface": self._safe_str(r.get("out-interface")),
+                            "out_interface_list": self._safe_str(r.get("out-interface-list")),
+                            "connection_state": self._safe_str(r.get("connection-state")),
+                            "new_packet_mark": self._safe_str(r.get("new-packet-mark")),
+                            "new_connection_mark": self._safe_str(r.get("new-connection-mark")),
+                            "new_routing_mark": self._safe_str(r.get("new-routing-mark")),
+                            "passthrough": self._is_true(r.get("passthrough", True)),
+                            "disabled": self._is_true(r.get("disabled", False)),
+                            "invalid": self._is_true(r.get("invalid", False)),
+                            "dynamic": self._is_true(r.get("dynamic", False)),
+                            "comment": self._safe_str(r.get("comment")),
+                            "bytes": self._safe_int(r.get("bytes", 0)),
+                            "packets": self._safe_int(r.get("packets", 0)),
+                            "log": self._is_true(r.get("log", False)),
+                            "log_prefix": self._safe_str(r.get("log-prefix")),
+                            "connection_mark": self._safe_str(r.get("connection-mark")),
+                            "packet_mark": self._safe_str(r.get("packet-mark")),
+                            "routing_mark": self._safe_str(r.get("routing-mark")),
+                        })
+                    except Exception as e:
+                        logger.error(f"Error parsing mangle rule {r.get('.id', '?')}: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting mangle rules: {e}")
             return []
@@ -1073,31 +1105,39 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 rules = list(api.path("/ip/firewall/raw"))
-                return [{
-                    "id": r.get(".id", ""),
-                    "chain": r.get("chain", ""),
-                    "action": r.get("action", ""),
-                    "src_address": r.get("src-address", ""),
-                    "dst_address": r.get("dst-address", ""),
-                    "src_address_list": r.get("src-address-list", ""),
-                    "dst_address_list": r.get("dst-address-list", ""),
-                    "protocol": r.get("protocol", ""),
-                    "src_port": r.get("src-port", ""),
-                    "dst_port": r.get("dst-port", ""),
-                    "in_interface": r.get("in-interface", ""),
-                    "in_interface_list": r.get("in-interface-list", ""),
-                    "out_interface": r.get("out-interface", ""),
-                    "out_interface_list": r.get("out-interface-list", ""),
-                    "connection_state": r.get("connection-state", ""),
-                    "disabled": self._is_true(r.get("disabled", False)),
-                    "invalid": self._is_true(r.get("invalid", False)),
-                    "dynamic": self._is_true(r.get("dynamic", False)),
-                    "comment": r.get("comment", ""),
-                    "bytes": self._safe_int(r.get("bytes", 0)),
-                    "packets": self._safe_int(r.get("packets", 0)),
-                    "log": self._is_true(r.get("log", False)),
-                    "log_prefix": r.get("log-prefix", ""),
-                } for r in rules]
+                if rules:
+                    logger.info(f"RAW: {len(rules)} rules, sample raw: {dict(rules[0])}")
+                result = []
+                for r in rules:
+                    try:
+                        result.append({
+                            "id": r.get(".id", ""),
+                            "chain": self._safe_str(r.get("chain")),
+                            "action": self._safe_str(r.get("action")),
+                            "src_address": self._safe_str(r.get("src-address")),
+                            "dst_address": self._safe_str(r.get("dst-address")),
+                            "src_address_list": self._safe_str(r.get("src-address-list")),
+                            "dst_address_list": self._safe_str(r.get("dst-address-list")),
+                            "protocol": self._safe_str(r.get("protocol")),
+                            "src_port": self._safe_str(r.get("src-port")),
+                            "dst_port": self._safe_str(r.get("dst-port")),
+                            "in_interface": self._safe_str(r.get("in-interface")),
+                            "in_interface_list": self._safe_str(r.get("in-interface-list")),
+                            "out_interface": self._safe_str(r.get("out-interface")),
+                            "out_interface_list": self._safe_str(r.get("out-interface-list")),
+                            "connection_state": self._safe_str(r.get("connection-state")),
+                            "disabled": self._is_true(r.get("disabled", False)),
+                            "invalid": self._is_true(r.get("invalid", False)),
+                            "dynamic": self._is_true(r.get("dynamic", False)),
+                            "comment": self._safe_str(r.get("comment")),
+                            "bytes": self._safe_int(r.get("bytes", 0)),
+                            "packets": self._safe_int(r.get("packets", 0)),
+                            "log": self._is_true(r.get("log", False)),
+                            "log_prefix": self._safe_str(r.get("log-prefix")),
+                        })
+                    except Exception as e:
+                        logger.error(f"Error parsing RAW rule {r.get('.id', '?')}: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting RAW rules: {e}")
             return []
@@ -1157,13 +1197,22 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 ports = list(api.path("/ip/firewall/service-port"))
-                return [{
-                    "id": p.get(".id", ""),
-                    "name": p.get("name", ""),
-                    "ports": p.get("ports", ""),
-                    "disabled": self._is_true(p.get("disabled", False)),
-                    "invalid": self._is_true(p.get("invalid", False)),
-                } for p in ports]
+                logger.info(f"Service ports: {len(ports)} entries")
+                if ports:
+                    logger.info(f"Service port sample raw: {dict(ports[0])}")
+                result = []
+                for p in ports:
+                    try:
+                        result.append({
+                            "id": p.get(".id", ""),
+                            "name": self._safe_str(p.get("name")),
+                            "ports": self._safe_str(p.get("ports")),
+                            "disabled": self._is_true(p.get("disabled", False)),
+                            "invalid": self._is_true(p.get("invalid", False)),
+                        })
+                    except Exception as e:
+                        logger.error(f"Error parsing service port {p.get('.id', '?')}: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting service ports: {e}")
             return []
@@ -1187,25 +1236,31 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 conns = list(api.path("/ip/firewall/connection"))
-                return [{
-                    "id": c.get(".id", ""),
-                    "protocol": c.get("protocol", ""),
-                    "src_address": c.get("src-address", ""),
-                    "dst_address": c.get("dst-address", ""),
-                    "reply_src_address": c.get("reply-src-address", ""),
-                    "reply_dst_address": c.get("reply-dst-address", ""),
-                    "tcp_state": c.get("tcp-state", ""),
-                    "timeout": c.get("timeout", ""),
-                    "connection_mark": c.get("connection-mark", ""),
-                    "assured": self._is_true(c.get("assured", False)),
-                    "confirmed": self._is_true(c.get("confirmed", False)),
-                    "dying": self._is_true(c.get("dying", False)),
-                    "fasttrack": self._is_true(c.get("fasttrack", False)),
-                    "orig_bytes": self._safe_int(c.get("orig-bytes", 0)),
-                    "repl_bytes": self._safe_int(c.get("repl-bytes", 0)),
-                    "orig_packets": self._safe_int(c.get("orig-packets", 0)),
-                    "repl_packets": self._safe_int(c.get("repl-packets", 0)),
-                } for c in conns]
+                result = []
+                for c in conns:
+                    try:
+                        result.append({
+                            "id": c.get(".id", ""),
+                            "protocol": self._safe_str(c.get("protocol")),
+                            "src_address": self._safe_str(c.get("src-address")),
+                            "dst_address": self._safe_str(c.get("dst-address")),
+                            "reply_src_address": self._safe_str(c.get("reply-src-address")),
+                            "reply_dst_address": self._safe_str(c.get("reply-dst-address")),
+                            "tcp_state": self._safe_str(c.get("tcp-state")),
+                            "timeout": self._safe_str(c.get("timeout")),
+                            "connection_mark": self._safe_str(c.get("connection-mark")),
+                            "assured": self._is_true(c.get("assured", False)),
+                            "confirmed": self._is_true(c.get("confirmed", False)),
+                            "dying": self._is_true(c.get("dying", False)),
+                            "fasttrack": self._is_true(c.get("fasttrack", False)),
+                            "orig_bytes": self._safe_int(c.get("orig-bytes", 0)),
+                            "repl_bytes": self._safe_int(c.get("repl-bytes", 0)),
+                            "orig_packets": self._safe_int(c.get("orig-packets", 0)),
+                            "repl_packets": self._safe_int(c.get("repl-packets", 0)),
+                        })
+                    except Exception as e:
+                        logger.error(f"Error parsing connection {c.get('.id', '?')}: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting connections: {e}")
             return []
@@ -1227,16 +1282,22 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 entries = list(api.path("/ip/firewall/address-list"))
-                return [{
-                    "id": e.get(".id", ""),
-                    "list": e.get("list", ""),
-                    "address": e.get("address", ""),
-                    "timeout": e.get("timeout", ""),
-                    "creation_time": e.get("creation-time", ""),
-                    "disabled": self._is_true(e.get("disabled", False)),
-                    "dynamic": self._is_true(e.get("dynamic", False)),
-                    "comment": e.get("comment", ""),
-                } for e in entries]
+                result = []
+                for e in entries:
+                    try:
+                        result.append({
+                            "id": e.get(".id", ""),
+                            "list": self._safe_str(e.get("list")),
+                            "address": self._safe_str(e.get("address")),
+                            "timeout": self._safe_str(e.get("timeout")),
+                            "creation_time": self._safe_str(e.get("creation-time")),
+                            "disabled": self._is_true(e.get("disabled", False)),
+                            "dynamic": self._is_true(e.get("dynamic", False)),
+                            "comment": self._safe_str(e.get("comment")),
+                        })
+                    except Exception as ex:
+                        logger.error(f"Error parsing address list entry {e.get('.id', '?')}: {ex}")
+                return result
         except Exception as e:
             logger.error(f"Error getting address lists: {e}")
             return []

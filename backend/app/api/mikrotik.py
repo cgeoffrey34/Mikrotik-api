@@ -350,12 +350,11 @@ async def delete_route(router_id: int, route_id: str, db: AsyncSession = Depends
 
 # ==================== Firewall ====================
 
-@router.get("/firewall/filter", response_model=List[FirewallRule])
+@router.get("/firewall/filter")
 async def get_firewall_rules(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get firewall filter rules."""
     _, service = await get_router_service(router_id, db)
-    rules = service.get_firewall_filter_rules()
-    return [FirewallRule(**rule) for rule in rules]
+    return service.get_firewall_filter_rules()
 
 
 @router.post("/firewall/filter")
@@ -410,12 +409,11 @@ async def toggle_firewall_rule(
     return {"success": True}
 
 
-@router.get("/firewall/nat", response_model=List[NATRule])
+@router.get("/firewall/nat")
 async def get_nat_rules(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get NAT rules."""
     _, service = await get_router_service(router_id, db)
-    rules = service.get_nat_rules()
-    return [NATRule(**rule) for rule in rules]
+    return service.get_nat_rules()
 
 
 @router.post("/firewall/nat")
@@ -473,12 +471,11 @@ async def toggle_nat_rule(
 
 # ==================== Mangle ====================
 
-@router.get("/firewall/mangle", response_model=List[MangleRule])
+@router.get("/firewall/mangle")
 async def get_mangle_rules(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get mangle rules."""
     _, service = await get_router_service(router_id, db)
-    rules = service.get_mangle_rules()
-    return [MangleRule(**rule) for rule in rules]
+    return service.get_mangle_rules()
 
 
 @router.post("/firewall/mangle")
@@ -522,12 +519,11 @@ async def toggle_mangle_rule(
 
 # ==================== RAW ====================
 
-@router.get("/firewall/raw", response_model=List[RawRule])
+@router.get("/firewall/raw")
 async def get_raw_rules(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get RAW firewall rules."""
     _, service = await get_router_service(router_id, db)
-    rules = service.get_raw_rules()
-    return [RawRule(**rule) for rule in rules]
+    return service.get_raw_rules()
 
 
 @router.post("/firewall/raw")
@@ -571,12 +567,11 @@ async def toggle_raw_rule(
 
 # ==================== Service Ports ====================
 
-@router.get("/firewall/service-ports", response_model=List[ServicePort])
+@router.get("/firewall/service-ports")
 async def get_service_ports(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get firewall service ports (ALG helpers)."""
     _, service = await get_router_service(router_id, db)
-    ports = service.get_service_ports()
-    return [ServicePort(**p) for p in ports]
+    return service.get_service_ports()
 
 
 @router.post("/firewall/service-ports/{port_id}/toggle")
@@ -596,12 +591,11 @@ async def toggle_service_port(
 
 # ==================== Connections ====================
 
-@router.get("/firewall/connections", response_model=List[ConnectionEntry])
+@router.get("/firewall/connections")
 async def get_connections(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get active firewall connections."""
     _, service = await get_router_service(router_id, db)
-    conns = service.get_connections()
-    return [ConnectionEntry(**c) for c in conns]
+    return service.get_connections()
 
 
 @router.delete("/firewall/connections/{conn_id}")
@@ -616,12 +610,11 @@ async def remove_connection(router_id: int, conn_id: str, db: AsyncSession = Dep
 
 # ==================== Address Lists ====================
 
-@router.get("/firewall/address-lists", response_model=List[AddressListEntry])
+@router.get("/firewall/address-lists")
 async def get_address_lists(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get firewall address list entries."""
     _, service = await get_router_service(router_id, db)
-    entries = service.get_address_lists()
-    return [AddressListEntry(**e) for e in entries]
+    return service.get_address_lists()
 
 
 @router.post("/firewall/address-lists")
