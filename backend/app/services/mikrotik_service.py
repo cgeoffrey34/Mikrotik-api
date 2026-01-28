@@ -801,13 +801,13 @@ class MikrotikService:
                         "out_interface": rule.get("out-interface", ""),
                         "out_interface_list": rule.get("out-interface-list", ""),
                         "connection_state": rule.get("connection-state", ""),
-                        "disabled": rule.get("disabled", "false") == "true",
-                        "invalid": rule.get("invalid", "false") == "true",
-                        "dynamic": rule.get("dynamic", "false") == "true",
+                        "disabled": self._is_true(rule.get("disabled", False)),
+                        "invalid": self._is_true(rule.get("invalid", False)),
+                        "dynamic": self._is_true(rule.get("dynamic", False)),
                         "comment": rule.get("comment", ""),
                         "bytes": self._safe_int(rule.get("bytes", 0)),
                         "packets": self._safe_int(rule.get("packets", 0)),
-                        "log": rule.get("log", "false") == "true",
+                        "log": self._is_true(rule.get("log", False)),
                         "log_prefix": rule.get("log-prefix", "")
                     }
                     for rule in rules
@@ -895,9 +895,9 @@ class MikrotikService:
                         "in_interface_list": rule.get("in-interface-list", ""),
                         "out_interface": rule.get("out-interface", ""),
                         "out_interface_list": rule.get("out-interface-list", ""),
-                        "disabled": rule.get("disabled", "false") == "true",
-                        "invalid": rule.get("invalid", "false") == "true",
-                        "dynamic": rule.get("dynamic", "false") == "true",
+                        "disabled": self._is_true(rule.get("disabled", False)),
+                        "invalid": self._is_true(rule.get("invalid", False)),
+                        "dynamic": self._is_true(rule.get("dynamic", False)),
                         "comment": rule.get("comment", ""),
                         "bytes": self._safe_int(rule.get("bytes", 0)),
                         "packets": self._safe_int(rule.get("packets", 0))
@@ -966,6 +966,321 @@ class MikrotikService:
                 return True
         except Exception as e:
             logger.error(f"Error toggling NAT rule: {e}")
+            return False
+
+    # ==================== Mangle ====================
+
+    def get_mangle_rules(self) -> List[Dict[str, Any]]:
+        """Get all mangle rules."""
+        try:
+            with self._connection() as api:
+                rules = list(api.path("/ip/firewall/mangle"))
+                return [{
+                    "id": r.get(".id", ""),
+                    "chain": r.get("chain", ""),
+                    "action": r.get("action", ""),
+                    "src_address": r.get("src-address", ""),
+                    "dst_address": r.get("dst-address", ""),
+                    "src_address_list": r.get("src-address-list", ""),
+                    "dst_address_list": r.get("dst-address-list", ""),
+                    "protocol": r.get("protocol", ""),
+                    "src_port": r.get("src-port", ""),
+                    "dst_port": r.get("dst-port", ""),
+                    "in_interface": r.get("in-interface", ""),
+                    "in_interface_list": r.get("in-interface-list", ""),
+                    "out_interface": r.get("out-interface", ""),
+                    "out_interface_list": r.get("out-interface-list", ""),
+                    "connection_state": r.get("connection-state", ""),
+                    "new_packet_mark": r.get("new-packet-mark", ""),
+                    "new_connection_mark": r.get("new-connection-mark", ""),
+                    "new_routing_mark": r.get("new-routing-mark", ""),
+                    "passthrough": self._is_true(r.get("passthrough", True)),
+                    "disabled": self._is_true(r.get("disabled", False)),
+                    "invalid": self._is_true(r.get("invalid", False)),
+                    "dynamic": self._is_true(r.get("dynamic", False)),
+                    "comment": r.get("comment", ""),
+                    "bytes": self._safe_int(r.get("bytes", 0)),
+                    "packets": self._safe_int(r.get("packets", 0)),
+                    "log": self._is_true(r.get("log", False)),
+                    "log_prefix": r.get("log-prefix", ""),
+                    "connection_mark": r.get("connection-mark", ""),
+                    "packet_mark": r.get("packet-mark", ""),
+                    "routing_mark": r.get("routing-mark", ""),
+                } for r in rules]
+        except Exception as e:
+            logger.error(f"Error getting mangle rules: {e}")
+            return []
+
+    def add_mangle_rule(self, **kwargs) -> bool:
+        """Add a mangle rule."""
+        try:
+            with self._connection() as api:
+                params = {}
+                field_map = {
+                    "chain": "chain", "action": "action",
+                    "src_address": "src-address", "dst_address": "dst-address",
+                    "src_address_list": "src-address-list", "dst_address_list": "dst-address-list",
+                    "protocol": "protocol", "src_port": "src-port", "dst_port": "dst-port",
+                    "in_interface": "in-interface", "out_interface": "out-interface",
+                    "connection_state": "connection-state",
+                    "new_packet_mark": "new-packet-mark",
+                    "new_connection_mark": "new-connection-mark",
+                    "new_routing_mark": "new-routing-mark",
+                    "passthrough": "passthrough",
+                    "comment": "comment",
+                }
+                for py_key, ros_key in field_map.items():
+                    val = kwargs.get(py_key)
+                    if val is not None and val != "":
+                        if isinstance(val, bool):
+                            params[ros_key] = "yes" if val else "no"
+                        else:
+                            params[ros_key] = str(val)
+                if kwargs.get("disabled"):
+                    params["disabled"] = "yes"
+                api.path("/ip/firewall/mangle").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding mangle rule: {e}")
+            return False
+
+    def delete_mangle_rule(self, rule_id: str) -> bool:
+        """Delete a mangle rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/mangle").remove(rule_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting mangle rule: {e}")
+            return False
+
+    def toggle_mangle_rule(self, rule_id: str, enable: bool) -> bool:
+        """Enable or disable a mangle rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/mangle").update(
+                    **{".id": rule_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling mangle rule: {e}")
+            return False
+
+    # ==================== RAW ====================
+
+    def get_raw_rules(self) -> List[Dict[str, Any]]:
+        """Get all RAW firewall rules."""
+        try:
+            with self._connection() as api:
+                rules = list(api.path("/ip/firewall/raw"))
+                return [{
+                    "id": r.get(".id", ""),
+                    "chain": r.get("chain", ""),
+                    "action": r.get("action", ""),
+                    "src_address": r.get("src-address", ""),
+                    "dst_address": r.get("dst-address", ""),
+                    "src_address_list": r.get("src-address-list", ""),
+                    "dst_address_list": r.get("dst-address-list", ""),
+                    "protocol": r.get("protocol", ""),
+                    "src_port": r.get("src-port", ""),
+                    "dst_port": r.get("dst-port", ""),
+                    "in_interface": r.get("in-interface", ""),
+                    "in_interface_list": r.get("in-interface-list", ""),
+                    "out_interface": r.get("out-interface", ""),
+                    "out_interface_list": r.get("out-interface-list", ""),
+                    "connection_state": r.get("connection-state", ""),
+                    "disabled": self._is_true(r.get("disabled", False)),
+                    "invalid": self._is_true(r.get("invalid", False)),
+                    "dynamic": self._is_true(r.get("dynamic", False)),
+                    "comment": r.get("comment", ""),
+                    "bytes": self._safe_int(r.get("bytes", 0)),
+                    "packets": self._safe_int(r.get("packets", 0)),
+                    "log": self._is_true(r.get("log", False)),
+                    "log_prefix": r.get("log-prefix", ""),
+                } for r in rules]
+        except Exception as e:
+            logger.error(f"Error getting RAW rules: {e}")
+            return []
+
+    def add_raw_rule(self, **kwargs) -> bool:
+        """Add a RAW firewall rule."""
+        try:
+            with self._connection() as api:
+                params = {}
+                field_map = {
+                    "chain": "chain", "action": "action",
+                    "src_address": "src-address", "dst_address": "dst-address",
+                    "src_address_list": "src-address-list", "dst_address_list": "dst-address-list",
+                    "protocol": "protocol", "src_port": "src-port", "dst_port": "dst-port",
+                    "in_interface": "in-interface", "out_interface": "out-interface",
+                    "connection_state": "connection-state",
+                    "comment": "comment",
+                }
+                for py_key, ros_key in field_map.items():
+                    val = kwargs.get(py_key)
+                    if val is not None and val != "":
+                        params[ros_key] = str(val)
+                if kwargs.get("disabled"):
+                    params["disabled"] = "yes"
+                api.path("/ip/firewall/raw").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding RAW rule: {e}")
+            return False
+
+    def delete_raw_rule(self, rule_id: str) -> bool:
+        """Delete a RAW firewall rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/raw").remove(rule_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting RAW rule: {e}")
+            return False
+
+    def toggle_raw_rule(self, rule_id: str, enable: bool) -> bool:
+        """Enable or disable a RAW rule."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/raw").update(
+                    **{".id": rule_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling RAW rule: {e}")
+            return False
+
+    # ==================== Service Ports ====================
+
+    def get_service_ports(self) -> List[Dict[str, Any]]:
+        """Get all firewall service ports (ALG helpers)."""
+        try:
+            with self._connection() as api:
+                ports = list(api.path("/ip/firewall/service-port"))
+                return [{
+                    "id": p.get(".id", ""),
+                    "name": p.get("name", ""),
+                    "ports": p.get("ports", ""),
+                    "disabled": self._is_true(p.get("disabled", False)),
+                    "invalid": self._is_true(p.get("invalid", False)),
+                } for p in ports]
+        except Exception as e:
+            logger.error(f"Error getting service ports: {e}")
+            return []
+
+    def toggle_service_port(self, port_id: str, enable: bool) -> bool:
+        """Enable or disable a service port."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/service-port").update(
+                    **{".id": port_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling service port: {e}")
+            return False
+
+    # ==================== Connections ====================
+
+    def get_connections(self) -> List[Dict[str, Any]]:
+        """Get all active firewall connections."""
+        try:
+            with self._connection() as api:
+                conns = list(api.path("/ip/firewall/connection"))
+                return [{
+                    "id": c.get(".id", ""),
+                    "protocol": c.get("protocol", ""),
+                    "src_address": c.get("src-address", ""),
+                    "dst_address": c.get("dst-address", ""),
+                    "reply_src_address": c.get("reply-src-address", ""),
+                    "reply_dst_address": c.get("reply-dst-address", ""),
+                    "tcp_state": c.get("tcp-state", ""),
+                    "timeout": c.get("timeout", ""),
+                    "connection_mark": c.get("connection-mark", ""),
+                    "assured": self._is_true(c.get("assured", False)),
+                    "confirmed": self._is_true(c.get("confirmed", False)),
+                    "dying": self._is_true(c.get("dying", False)),
+                    "fasttrack": self._is_true(c.get("fasttrack", False)),
+                    "orig_bytes": self._safe_int(c.get("orig-bytes", 0)),
+                    "repl_bytes": self._safe_int(c.get("repl-bytes", 0)),
+                    "orig_packets": self._safe_int(c.get("orig-packets", 0)),
+                    "repl_packets": self._safe_int(c.get("repl-packets", 0)),
+                } for c in conns]
+        except Exception as e:
+            logger.error(f"Error getting connections: {e}")
+            return []
+
+    def remove_connection(self, conn_id: str) -> bool:
+        """Remove a connection from the connection table."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/connection").remove(conn_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error removing connection: {e}")
+            return False
+
+    # ==================== Address Lists ====================
+
+    def get_address_lists(self) -> List[Dict[str, Any]]:
+        """Get all firewall address list entries."""
+        try:
+            with self._connection() as api:
+                entries = list(api.path("/ip/firewall/address-list"))
+                return [{
+                    "id": e.get(".id", ""),
+                    "list": e.get("list", ""),
+                    "address": e.get("address", ""),
+                    "timeout": e.get("timeout", ""),
+                    "creation_time": e.get("creation-time", ""),
+                    "disabled": self._is_true(e.get("disabled", False)),
+                    "dynamic": self._is_true(e.get("dynamic", False)),
+                    "comment": e.get("comment", ""),
+                } for e in entries]
+        except Exception as e:
+            logger.error(f"Error getting address lists: {e}")
+            return []
+
+    def add_address_list_entry(self, list_name: str, address: str, timeout: str = "", comment: str = "", disabled: bool = False) -> bool:
+        """Add an entry to a firewall address list."""
+        try:
+            with self._connection() as api:
+                params = {
+                    "list": list_name,
+                    "address": address,
+                }
+                if timeout:
+                    params["timeout"] = timeout
+                if comment:
+                    params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
+                api.path("/ip/firewall/address-list").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding address list entry: {e}")
+            return False
+
+    def delete_address_list_entry(self, entry_id: str) -> bool:
+        """Delete an address list entry."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/address-list").remove(entry_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting address list entry: {e}")
+            return False
+
+    def toggle_address_list_entry(self, entry_id: str, enable: bool) -> bool:
+        """Enable or disable an address list entry."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/firewall/address-list").update(
+                    **{".id": entry_id, "disabled": "no" if enable else "yes"}
+                )
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling address list entry: {e}")
             return False
 
     # ==================== DNS ====================

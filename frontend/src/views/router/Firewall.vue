@@ -1,112 +1,261 @@
 <template>
   <div class="space-y-6">
-    <!-- Filter rules -->
-    <div class="card">
-      <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900">Regles de filtrage</h3>
-        <button @click="showFilterModal = true" class="btn btn-primary text-sm">
-          <PlusIcon class="w-4 h-4 mr-1" />
-          Ajouter une regle
+    <!-- Tab navigation -->
+    <div class="border-b border-gray-200">
+      <nav class="-mb-px flex space-x-4 overflow-x-auto" aria-label="Firewall tabs">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          @click="activeTab = tab.key"
+          :class="[
+            activeTab === tab.key
+              ? 'border-blue-500 text-blue-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300',
+            'whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm cursor-pointer'
+          ]"
+        >
+          {{ tab.label }}
         </button>
-      </div>
-
-      <DataTable :columns="filterColumns" :data="filterRules" :loading="loadingFilter" empty-message="Aucune regle de filtrage">
-        <template #cell-chain="{ row }">
-          <span class="badge badge-info">{{ row.chain }}</span>
-        </template>
-
-        <template #cell-action="{ row }">
-          <span :class="[getActionClass(row.action), 'badge']">
-            {{ row.action }}
-          </span>
-        </template>
-
-        <template #cell-disabled="{ row }">
-          <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">
-            {{ row.disabled ? 'Desactivee' : 'Active' }}
-          </span>
-        </template>
-
-        <template #cell-stats="{ row }">
-          <div class="text-sm text-gray-500">
-            {{ formatNumber(row.packets) }} paquets / {{ formatBytes(row.bytes) }}
-          </div>
-        </template>
-
-        <template #actions="{ row }">
-          <div class="flex items-center gap-2">
-            <button
-              @click="toggleFilterRule(row)"
-              :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']"
-              :disabled="toggling === row.id"
-            >
-              {{ row.disabled ? 'Activer' : 'Desactiver' }}
-            </button>
-            <button
-              @click="deleteFilterRule(row)"
-              class="text-red-600 hover:text-red-800"
-              :disabled="deleting === row.id"
-            >
-              Supprimer
-            </button>
-          </div>
-        </template>
-      </DataTable>
+      </nav>
     </div>
 
-    <!-- NAT rules -->
-    <div class="card">
-      <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-        <h3 class="text-lg font-medium text-gray-900">Regles NAT</h3>
-        <button @click="showNatModal = true" class="btn btn-primary text-sm">
-          <PlusIcon class="w-4 h-4 mr-1" />
-          Ajouter une regle NAT
-        </button>
+    <!-- ==================== FILTER ==================== -->
+    <div v-if="activeTab === 'filter'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Regles de filtrage</h3>
+          <button @click="showFilterModal = true" class="btn btn-primary text-sm">
+            <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle
+          </button>
+        </div>
+        <DataTable :columns="filterColumns" :data="filterRules" :loading="loadingFilter" empty-message="Aucune regle de filtrage">
+          <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
+          <template #cell-action="{ row }"><span :class="[getActionClass(row.action), 'badge']">{{ row.action }}</span></template>
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactivee' : 'Active' }}</span>
+          </template>
+          <template #cell-stats="{ row }">
+            <div class="text-sm text-gray-500">{{ formatNumber(row.packets) }} pkt / {{ formatBytes(row.bytes) }}</div>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button @click="toggleRule('filter', row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
+                {{ row.disabled ? 'Activer' : 'Desactiver' }}
+              </button>
+              <button @click="deleteRule('filter', row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+            </div>
+          </template>
+        </DataTable>
       </div>
+    </div>
 
-      <DataTable :columns="natColumns" :data="natRules" :loading="loadingNat" empty-message="Aucune regle NAT">
-        <template #cell-chain="{ row }">
-          <span class="badge badge-info">{{ row.chain }}</span>
-        </template>
+    <!-- ==================== NAT ==================== -->
+    <div v-if="activeTab === 'nat'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Regles NAT</h3>
+          <button @click="showNatModal = true" class="btn btn-primary text-sm">
+            <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle NAT
+          </button>
+        </div>
+        <DataTable :columns="natColumns" :data="natRules" :loading="loadingNat" empty-message="Aucune regle NAT">
+          <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
+          <template #cell-action="{ row }"><span :class="[getNatActionClass(row.action), 'badge']">{{ row.action }}</span></template>
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactivee' : 'Active' }}</span>
+          </template>
+          <template #cell-stats="{ row }">
+            <div class="text-sm text-gray-500">{{ formatNumber(row.packets) }} pkt / {{ formatBytes(row.bytes) }}</div>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button @click="toggleRule('nat', row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
+                {{ row.disabled ? 'Activer' : 'Desactiver' }}
+              </button>
+              <button @click="deleteRule('nat', row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+            </div>
+          </template>
+        </DataTable>
+      </div>
+    </div>
 
-        <template #cell-action="{ row }">
-          <span :class="[getNatActionClass(row.action), 'badge']">
-            {{ row.action }}
-          </span>
-        </template>
+    <!-- ==================== MANGLE ==================== -->
+    <div v-if="activeTab === 'mangle'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Regles Mangle</h3>
+          <button @click="showMangleModal = true" class="btn btn-primary text-sm">
+            <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle Mangle
+          </button>
+        </div>
+        <DataTable :columns="mangleColumns" :data="mangleRules" :loading="loadingMangle" empty-message="Aucune regle Mangle">
+          <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
+          <template #cell-action="{ row }"><span :class="[getMangleActionClass(row.action), 'badge']">{{ row.action }}</span></template>
+          <template #cell-marks="{ row }">
+            <div class="text-xs space-y-0.5">
+              <div v-if="row.new_packet_mark"><span class="text-gray-500">pkt:</span> {{ row.new_packet_mark }}</div>
+              <div v-if="row.new_connection_mark"><span class="text-gray-500">conn:</span> {{ row.new_connection_mark }}</div>
+              <div v-if="row.new_routing_mark"><span class="text-gray-500">route:</span> {{ row.new_routing_mark }}</div>
+            </div>
+          </template>
+          <template #cell-passthrough="{ row }">
+            <span :class="[row.passthrough ? 'badge-success' : 'badge-warning', 'badge']">{{ row.passthrough ? 'Oui' : 'Non' }}</span>
+          </template>
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactivee' : 'Active' }}</span>
+          </template>
+          <template #cell-stats="{ row }">
+            <div class="text-sm text-gray-500">{{ formatNumber(row.packets) }} pkt / {{ formatBytes(row.bytes) }}</div>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button @click="toggleRule('mangle', row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
+                {{ row.disabled ? 'Activer' : 'Desactiver' }}
+              </button>
+              <button @click="deleteRule('mangle', row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+            </div>
+          </template>
+        </DataTable>
+      </div>
+    </div>
 
-        <template #cell-disabled="{ row }">
-          <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">
-            {{ row.disabled ? 'Desactivee' : 'Active' }}
-          </span>
-        </template>
+    <!-- ==================== RAW ==================== -->
+    <div v-if="activeTab === 'raw'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Regles RAW</h3>
+          <button @click="showRawModal = true" class="btn btn-primary text-sm">
+            <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle RAW
+          </button>
+        </div>
+        <DataTable :columns="rawColumns" :data="rawRules" :loading="loadingRaw" empty-message="Aucune regle RAW">
+          <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
+          <template #cell-action="{ row }"><span :class="[getRawActionClass(row.action), 'badge']">{{ row.action }}</span></template>
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactivee' : 'Active' }}</span>
+          </template>
+          <template #cell-stats="{ row }">
+            <div class="text-sm text-gray-500">{{ formatNumber(row.packets) }} pkt / {{ formatBytes(row.bytes) }}</div>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button @click="toggleRule('raw', row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
+                {{ row.disabled ? 'Activer' : 'Desactiver' }}
+              </button>
+              <button @click="deleteRule('raw', row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+            </div>
+          </template>
+        </DataTable>
+      </div>
+    </div>
 
-        <template #cell-stats="{ row }">
-          <div class="text-sm text-gray-500">
-            {{ formatNumber(row.packets) }} paquets / {{ formatBytes(row.bytes) }}
-          </div>
-        </template>
-
-        <template #actions="{ row }">
-          <div class="flex items-center gap-2">
-            <button
-              @click="toggleNatRule(row)"
-              :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']"
-              :disabled="togglingNat === row.id"
-            >
+    <!-- ==================== SERVICE PORTS ==================== -->
+    <div v-if="activeTab === 'service-ports'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200">
+          <h3 class="text-lg font-medium text-gray-900">Service Ports (ALG)</h3>
+        </div>
+        <DataTable :columns="servicePortColumns" :data="servicePorts" :loading="loadingServicePorts" empty-message="Aucun service port">
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactive' : 'Actif' }}</span>
+          </template>
+          <template #actions="{ row }">
+            <button @click="toggleServicePort(row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
               {{ row.disabled ? 'Activer' : 'Desactiver' }}
             </button>
+          </template>
+        </DataTable>
+      </div>
+    </div>
+
+    <!-- ==================== CONNECTIONS ==================== -->
+    <div v-if="activeTab === 'connections'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Connexions actives ({{ connections.length }})</h3>
+          <button @click="fetchConnections" class="btn btn-secondary text-sm">
+            <ArrowPathIcon class="w-4 h-4 mr-1" /> Rafraichir
+          </button>
+        </div>
+        <DataTable :columns="connectionColumns" :data="connections" :loading="loadingConnections" empty-message="Aucune connexion active">
+          <template #cell-protocol="{ row }">
+            <span class="badge badge-info">{{ row.protocol }}</span>
+          </template>
+          <template #cell-tcp_state="{ row }">
+            <span v-if="row.tcp_state" :class="[getTcpStateClass(row.tcp_state), 'badge']">{{ row.tcp_state }}</span>
+          </template>
+          <template #cell-flags="{ row }">
+            <div class="flex gap-1 flex-wrap">
+              <span v-if="row.assured" class="badge badge-success text-xs">assured</span>
+              <span v-if="row.fasttrack" class="badge badge-info text-xs">fasttrack</span>
+              <span v-if="row.dying" class="badge badge-warning text-xs">dying</span>
+            </div>
+          </template>
+          <template #cell-traffic="{ row }">
+            <div class="text-xs text-gray-500">
+              <div>TX: {{ formatBytes(row.orig_bytes) }} ({{ formatNumber(row.orig_packets) }} pkt)</div>
+              <div>RX: {{ formatBytes(row.repl_bytes) }} ({{ formatNumber(row.repl_packets) }} pkt)</div>
+            </div>
+          </template>
+          <template #actions="{ row }">
+            <button @click="removeConnection(row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+          </template>
+        </DataTable>
+      </div>
+    </div>
+
+    <!-- ==================== ADDRESS LISTS ==================== -->
+    <div v-if="activeTab === 'address-lists'">
+      <div class="card">
+        <div class="p-6 border-b border-gray-200 flex items-center justify-between">
+          <h3 class="text-lg font-medium text-gray-900">Address Lists</h3>
+          <button @click="showAddressListModal = true" class="btn btn-primary text-sm">
+            <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une entree
+          </button>
+        </div>
+
+        <!-- Filter by list name -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50" v-if="addressListNames.length > 1">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-sm font-medium text-gray-600">Liste :</span>
             <button
-              @click="deleteNatRule(row)"
-              class="text-red-600 hover:text-red-800"
-              :disabled="deletingNat === row.id"
+              @click="addressListFilter = ''"
+              :class="[!addressListFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-3 py-1 rounded-full text-xs font-medium border']"
             >
-              Supprimer
+              Toutes ({{ addressListEntries.length }})
+            </button>
+            <button
+              v-for="name in addressListNames"
+              :key="name"
+              @click="addressListFilter = name"
+              :class="[addressListFilter === name ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-3 py-1 rounded-full text-xs font-medium border']"
+            >
+              {{ name }} ({{ addressListEntries.filter(e => e.list === name).length }})
             </button>
           </div>
-        </template>
-      </DataTable>
+        </div>
+
+        <DataTable :columns="addressListColumns" :data="filteredAddressListEntries" :loading="loadingAddressLists" empty-message="Aucune entree">
+          <template #cell-list="{ row }"><span class="badge badge-info">{{ row.list }}</span></template>
+          <template #cell-dynamic="{ row }">
+            <span :class="[row.dynamic ? 'badge-purple' : 'badge-success', 'badge']">{{ row.dynamic ? 'Dynamique' : 'Statique' }}</span>
+          </template>
+          <template #cell-disabled="{ row }">
+            <span :class="[row.disabled ? 'badge-warning' : 'badge-success', 'badge']">{{ row.disabled ? 'Desactivee' : 'Active' }}</span>
+          </template>
+          <template #actions="{ row }">
+            <div class="flex items-center gap-2">
+              <button @click="toggleAddressListEntry(row)" :class="[row.disabled ? 'text-green-600 hover:text-green-800' : 'text-yellow-600 hover:text-yellow-800']" :disabled="togglingId === row.id">
+                {{ row.disabled ? 'Activer' : 'Desactiver' }}
+              </button>
+              <button v-if="!row.dynamic" @click="deleteAddressListEntry(row)" class="text-red-600 hover:text-red-800" :disabled="deletingId === row.id">Supprimer</button>
+            </div>
+          </template>
+        </DataTable>
+      </div>
     </div>
+
+    <!-- ==================== MODALS ==================== -->
 
     <!-- Add Filter Rule Modal -->
     <Modal v-model="showFilterModal" title="Ajouter une regle de filtrage" size="lg">
@@ -129,10 +278,10 @@
               <option value="log">log</option>
               <option value="jump">jump</option>
               <option value="passthrough">passthrough</option>
+              <option value="fasttrack-connection">fasttrack-connection</option>
             </select>
           </div>
         </div>
-
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Adresse source</label>
@@ -143,7 +292,6 @@
             <input v-model="filterForm.dst_address" type="text" class="input" placeholder="0.0.0.0/0" />
           </div>
         </div>
-
         <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="label">Protocole</label>
@@ -164,7 +312,6 @@
             <input v-model="filterForm.dst_port" type="text" class="input" placeholder="80,443" />
           </div>
         </div>
-
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Interface entree</label>
@@ -175,34 +322,28 @@
             <input v-model="filterForm.out_interface" type="text" class="input" placeholder="ether2" />
           </div>
         </div>
-
         <div>
           <label class="label">Etat de connexion</label>
           <input v-model="filterForm.connection_state" type="text" class="input" placeholder="established,related" />
         </div>
-
         <div>
           <label class="label">Commentaire</label>
           <input v-model="filterForm.comment" type="text" class="input" placeholder="Description de la regle" />
         </div>
-
         <div class="flex items-center">
           <input type="checkbox" v-model="filterForm.disabled" id="filter-disabled" class="mr-2" />
           <label for="filter-disabled">Creer desactivee</label>
         </div>
       </form>
-
       <template #footer>
-        <button @click="addFilterRule" class="btn btn-primary" :disabled="addingFilter">
-          {{ addingFilter ? 'Ajout...' : 'Ajouter' }}
-        </button>
+        <button @click="addFilterRule" class="btn btn-primary" :disabled="adding">{{ adding ? 'Ajout...' : 'Ajouter' }}</button>
         <button @click="showFilterModal = false" class="btn btn-secondary mr-3">Annuler</button>
       </template>
     </Modal>
 
     <!-- Add NAT Rule Modal -->
     <Modal v-model="showNatModal" title="Ajouter une regle NAT" size="lg">
-      <form @submit.prevent="addNatRuleSubmit" class="space-y-4">
+      <form @submit.prevent="addNatRule" class="space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Chaine *</label>
@@ -223,7 +364,6 @@
             </select>
           </div>
         </div>
-
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Adresse source</label>
@@ -234,7 +374,6 @@
             <input v-model="natForm.dst_address" type="text" class="input" placeholder="0.0.0.0/0" />
           </div>
         </div>
-
         <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="label">Protocole</label>
@@ -253,7 +392,6 @@
             <input v-model="natForm.dst_port" type="text" class="input" placeholder="80" />
           </div>
         </div>
-
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Vers adresse(s)</label>
@@ -264,7 +402,6 @@
             <input v-model="natForm.to_ports" type="text" class="input" placeholder="8080" />
           </div>
         </div>
-
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="label">Interface entree</label>
@@ -275,129 +412,457 @@
             <input v-model="natForm.out_interface" type="text" class="input" placeholder="ether2-lan" />
           </div>
         </div>
-
         <div>
           <label class="label">Commentaire</label>
           <input v-model="natForm.comment" type="text" class="input" placeholder="Description de la regle NAT" />
         </div>
-
         <div class="flex items-center">
           <input type="checkbox" v-model="natForm.disabled" id="nat-disabled" class="mr-2" />
           <label for="nat-disabled">Creer desactivee</label>
         </div>
       </form>
-
       <template #footer>
-        <button @click="addNatRuleSubmit" class="btn btn-primary" :disabled="addingNat">
-          {{ addingNat ? 'Ajout...' : 'Ajouter' }}
-        </button>
+        <button @click="addNatRule" class="btn btn-primary" :disabled="adding">{{ adding ? 'Ajout...' : 'Ajouter' }}</button>
         <button @click="showNatModal = false" class="btn btn-secondary mr-3">Annuler</button>
+      </template>
+    </Modal>
+
+    <!-- Add Mangle Rule Modal -->
+    <Modal v-model="showMangleModal" title="Ajouter une regle Mangle" size="lg">
+      <form @submit.prevent="addMangleRule" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Chaine *</label>
+            <select v-model="mangleForm.chain" class="input" required>
+              <option value="prerouting">prerouting</option>
+              <option value="input">input</option>
+              <option value="forward">forward</option>
+              <option value="output">output</option>
+              <option value="postrouting">postrouting</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Action *</label>
+            <select v-model="mangleForm.action" class="input" required>
+              <option value="mark-packet">mark-packet</option>
+              <option value="mark-connection">mark-connection</option>
+              <option value="mark-routing">mark-routing</option>
+              <option value="change-mss">change-mss</option>
+              <option value="change-ttl">change-ttl</option>
+              <option value="change-dscp">change-dscp</option>
+              <option value="accept">accept</option>
+              <option value="drop">drop</option>
+              <option value="log">log</option>
+              <option value="passthrough">passthrough</option>
+              <option value="jump">jump</option>
+              <option value="return">return</option>
+              <option value="fasttrack-connection">fasttrack-connection</option>
+              <option value="sniff-tzsp">sniff-tzsp</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Adresse source</label>
+            <input v-model="mangleForm.src_address" type="text" class="input" placeholder="0.0.0.0/0" />
+          </div>
+          <div>
+            <label class="label">Adresse destination</label>
+            <input v-model="mangleForm.dst_address" type="text" class="input" placeholder="0.0.0.0/0" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="label">Protocole</label>
+            <select v-model="mangleForm.protocol" class="input">
+              <option value="">Tous</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+              <option value="icmp">ICMP</option>
+              <option value="gre">GRE</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Port source</label>
+            <input v-model="mangleForm.src_port" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Port destination</label>
+            <input v-model="mangleForm.dst_port" type="text" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Interface entree</label>
+            <input v-model="mangleForm.in_interface" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Interface sortie</label>
+            <input v-model="mangleForm.out_interface" type="text" class="input" />
+          </div>
+        </div>
+        <div>
+          <label class="label">Etat de connexion</label>
+          <input v-model="mangleForm.connection_state" type="text" class="input" placeholder="established,related,new" />
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="label">New Packet Mark</label>
+            <input v-model="mangleForm.new_packet_mark" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">New Connection Mark</label>
+            <input v-model="mangleForm.new_connection_mark" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">New Routing Mark</label>
+            <input v-model="mangleForm.new_routing_mark" type="text" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Src Address List</label>
+            <input v-model="mangleForm.src_address_list" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Dst Address List</label>
+            <input v-model="mangleForm.dst_address_list" type="text" class="input" />
+          </div>
+        </div>
+        <div class="flex items-center gap-6">
+          <div class="flex items-center">
+            <input type="checkbox" v-model="mangleForm.passthrough" id="mangle-passthrough" class="mr-2" />
+            <label for="mangle-passthrough">Passthrough</label>
+          </div>
+          <div class="flex items-center">
+            <input type="checkbox" v-model="mangleForm.disabled" id="mangle-disabled" class="mr-2" />
+            <label for="mangle-disabled">Creer desactivee</label>
+          </div>
+        </div>
+        <div>
+          <label class="label">Commentaire</label>
+          <input v-model="mangleForm.comment" type="text" class="input" />
+        </div>
+      </form>
+      <template #footer>
+        <button @click="addMangleRule" class="btn btn-primary" :disabled="adding">{{ adding ? 'Ajout...' : 'Ajouter' }}</button>
+        <button @click="showMangleModal = false" class="btn btn-secondary mr-3">Annuler</button>
+      </template>
+    </Modal>
+
+    <!-- Add RAW Rule Modal -->
+    <Modal v-model="showRawModal" title="Ajouter une regle RAW" size="lg">
+      <form @submit.prevent="addRawRule" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Chaine *</label>
+            <select v-model="rawForm.chain" class="input" required>
+              <option value="prerouting">prerouting</option>
+              <option value="output">output</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Action *</label>
+            <select v-model="rawForm.action" class="input" required>
+              <option value="accept">accept</option>
+              <option value="drop">drop</option>
+              <option value="notrack">notrack</option>
+              <option value="log">log</option>
+              <option value="jump">jump</option>
+              <option value="return">return</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Adresse source</label>
+            <input v-model="rawForm.src_address" type="text" class="input" placeholder="0.0.0.0/0" />
+          </div>
+          <div>
+            <label class="label">Adresse destination</label>
+            <input v-model="rawForm.dst_address" type="text" class="input" placeholder="0.0.0.0/0" />
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="label">Protocole</label>
+            <select v-model="rawForm.protocol" class="input">
+              <option value="">Tous</option>
+              <option value="tcp">TCP</option>
+              <option value="udp">UDP</option>
+              <option value="icmp">ICMP</option>
+            </select>
+          </div>
+          <div>
+            <label class="label">Port source</label>
+            <input v-model="rawForm.src_port" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Port destination</label>
+            <input v-model="rawForm.dst_port" type="text" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Interface entree</label>
+            <input v-model="rawForm.in_interface" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Interface sortie</label>
+            <input v-model="rawForm.out_interface" type="text" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">Src Address List</label>
+            <input v-model="rawForm.src_address_list" type="text" class="input" />
+          </div>
+          <div>
+            <label class="label">Dst Address List</label>
+            <input v-model="rawForm.dst_address_list" type="text" class="input" />
+          </div>
+        </div>
+        <div>
+          <label class="label">Commentaire</label>
+          <input v-model="rawForm.comment" type="text" class="input" />
+        </div>
+        <div class="flex items-center">
+          <input type="checkbox" v-model="rawForm.disabled" id="raw-disabled" class="mr-2" />
+          <label for="raw-disabled">Creer desactivee</label>
+        </div>
+      </form>
+      <template #footer>
+        <button @click="addRawRule" class="btn btn-primary" :disabled="adding">{{ adding ? 'Ajout...' : 'Ajouter' }}</button>
+        <button @click="showRawModal = false" class="btn btn-secondary mr-3">Annuler</button>
+      </template>
+    </Modal>
+
+    <!-- Add Address List Entry Modal -->
+    <Modal v-model="showAddressListModal" title="Ajouter une entree Address List" size="md">
+      <form @submit.prevent="addAddressListEntry" class="space-y-4">
+        <div>
+          <label class="label">Nom de la liste *</label>
+          <input v-model="addressListForm.list" type="text" class="input" required placeholder="blacklist" />
+        </div>
+        <div>
+          <label class="label">Adresse *</label>
+          <input v-model="addressListForm.address" type="text" class="input" required placeholder="192.168.1.0/24 ou domaine.com" />
+        </div>
+        <div>
+          <label class="label">Timeout</label>
+          <input v-model="addressListForm.timeout" type="text" class="input" placeholder="1d (vide = permanent)" />
+        </div>
+        <div>
+          <label class="label">Commentaire</label>
+          <input v-model="addressListForm.comment" type="text" class="input" />
+        </div>
+        <div class="flex items-center">
+          <input type="checkbox" v-model="addressListForm.disabled" id="al-disabled" class="mr-2" />
+          <label for="al-disabled">Creer desactivee</label>
+        </div>
+      </form>
+      <template #footer>
+        <button @click="addAddressListEntry" class="btn btn-primary" :disabled="adding">{{ adding ? 'Ajout...' : 'Ajouter' }}</button>
+        <button @click="showAddressListModal = false" class="btn btn-secondary mr-3">Annuler</button>
       </template>
     </Modal>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../api'
 import { useNotificationStore } from '../../stores/notifications'
 import DataTable from '../../components/DataTable.vue'
 import Modal from '../../components/Modal.vue'
-import { PlusIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, ArrowPathIcon } from '@heroicons/vue/24/outline'
 
 const route = useRoute()
 const notifications = useNotificationStore()
+const routerId = route.params.id
+
+// ==================== State ====================
+
+const activeTab = ref('filter')
+const tabs = [
+  { key: 'filter', label: 'Filter' },
+  { key: 'nat', label: 'NAT' },
+  { key: 'mangle', label: 'Mangle' },
+  { key: 'raw', label: 'RAW' },
+  { key: 'service-ports', label: 'Service Ports' },
+  { key: 'connections', label: 'Connections' },
+  { key: 'address-lists', label: 'Address Lists' }
+]
 
 const filterRules = ref([])
 const natRules = ref([])
-const loadingFilter = ref(true)
-const loadingNat = ref(true)
-const toggling = ref(null)
-const togglingNat = ref(null)
-const deleting = ref(null)
-const deletingNat = ref(null)
+const mangleRules = ref([])
+const rawRules = ref([])
+const servicePorts = ref([])
+const connections = ref([])
+const addressListEntries = ref([])
+const addressListFilter = ref('')
+
+const loadingFilter = ref(false)
+const loadingNat = ref(false)
+const loadingMangle = ref(false)
+const loadingRaw = ref(false)
+const loadingServicePorts = ref(false)
+const loadingConnections = ref(false)
+const loadingAddressLists = ref(false)
+
+const togglingId = ref(null)
+const deletingId = ref(null)
+const adding = ref(false)
+
 const showFilterModal = ref(false)
 const showNatModal = ref(false)
-const addingFilter = ref(false)
-const addingNat = ref(false)
+const showMangleModal = ref(false)
+const showRawModal = ref(false)
+const showAddressListModal = ref(false)
+
+// ==================== Forms ====================
 
 const filterForm = reactive({
-  chain: 'forward',
-  action: 'accept',
-  src_address: '',
-  dst_address: '',
-  protocol: '',
-  src_port: '',
-  dst_port: '',
-  in_interface: '',
-  out_interface: '',
-  connection_state: '',
-  comment: '',
-  disabled: false
+  chain: 'forward', action: 'accept', src_address: '', dst_address: '',
+  protocol: '', src_port: '', dst_port: '', in_interface: '', out_interface: '',
+  connection_state: '', comment: '', disabled: false
 })
 
 const natForm = reactive({
-  chain: 'srcnat',
-  action: 'masquerade',
-  src_address: '',
-  dst_address: '',
-  protocol: '',
-  src_port: '',
-  dst_port: '',
-  to_addresses: '',
-  to_ports: '',
-  in_interface: '',
-  out_interface: '',
-  comment: '',
-  disabled: false
+  chain: 'srcnat', action: 'masquerade', src_address: '', dst_address: '',
+  protocol: '', src_port: '', dst_port: '', to_addresses: '', to_ports: '',
+  in_interface: '', out_interface: '', comment: '', disabled: false
 })
+
+const mangleForm = reactive({
+  chain: 'prerouting', action: 'mark-packet', src_address: '', dst_address: '',
+  src_address_list: '', dst_address_list: '', protocol: '', src_port: '', dst_port: '',
+  in_interface: '', out_interface: '', connection_state: '',
+  new_packet_mark: '', new_connection_mark: '', new_routing_mark: '',
+  passthrough: true, comment: '', disabled: false
+})
+
+const rawForm = reactive({
+  chain: 'prerouting', action: 'drop', src_address: '', dst_address: '',
+  src_address_list: '', dst_address_list: '', protocol: '', src_port: '', dst_port: '',
+  in_interface: '', out_interface: '', connection_state: '', comment: '', disabled: false
+})
+
+const addressListForm = reactive({
+  list: '', address: '', timeout: '', comment: '', disabled: false
+})
+
+// ==================== Columns ====================
 
 const filterColumns = [
   { key: 'chain', label: 'Chaine' },
   { key: 'action', label: 'Action' },
-  { key: 'protocol', label: 'Protocole' },
+  { key: 'protocol', label: 'Proto' },
   { key: 'src_address', label: 'Source' },
   { key: 'dst_address', label: 'Destination' },
   { key: 'dst_port', label: 'Port' },
+  { key: 'in_interface', label: 'In' },
   { key: 'disabled', label: 'Status' },
-  { key: 'stats', label: 'Statistiques' },
+  { key: 'stats', label: 'Stats' },
   { key: 'comment', label: 'Commentaire' }
 ]
 
 const natColumns = [
   { key: 'chain', label: 'Chaine' },
   { key: 'action', label: 'Action' },
-  { key: 'protocol', label: 'Protocole' },
+  { key: 'protocol', label: 'Proto' },
   { key: 'src_address', label: 'Source' },
   { key: 'dst_address', label: 'Destination' },
   { key: 'to_addresses', label: 'Vers IP' },
   { key: 'to_ports', label: 'Vers Port' },
   { key: 'disabled', label: 'Status' },
-  { key: 'stats', label: 'Statistiques' },
+  { key: 'stats', label: 'Stats' },
   { key: 'comment', label: 'Commentaire' }
 ]
 
-function getActionClass(action) {
-  const classes = {
-    'accept': 'badge-success',
-    'drop': 'badge-danger',
-    'reject': 'badge-danger',
-    'log': 'badge-warning',
-    'jump': 'badge-info'
-  }
-  return classes[action] || 'badge-info'
-}
+const mangleColumns = [
+  { key: 'chain', label: 'Chaine' },
+  { key: 'action', label: 'Action' },
+  { key: 'protocol', label: 'Proto' },
+  { key: 'src_address', label: 'Source' },
+  { key: 'dst_address', label: 'Destination' },
+  { key: 'marks', label: 'Marks' },
+  { key: 'passthrough', label: 'Passthrough' },
+  { key: 'disabled', label: 'Status' },
+  { key: 'stats', label: 'Stats' },
+  { key: 'comment', label: 'Commentaire' }
+]
 
+const rawColumns = [
+  { key: 'chain', label: 'Chaine' },
+  { key: 'action', label: 'Action' },
+  { key: 'protocol', label: 'Proto' },
+  { key: 'src_address', label: 'Source' },
+  { key: 'dst_address', label: 'Destination' },
+  { key: 'in_interface', label: 'In' },
+  { key: 'disabled', label: 'Status' },
+  { key: 'stats', label: 'Stats' },
+  { key: 'comment', label: 'Commentaire' }
+]
+
+const servicePortColumns = [
+  { key: 'name', label: 'Service' },
+  { key: 'ports', label: 'Ports' },
+  { key: 'disabled', label: 'Status' }
+]
+
+const connectionColumns = [
+  { key: 'protocol', label: 'Proto' },
+  { key: 'src_address', label: 'Source' },
+  { key: 'dst_address', label: 'Destination' },
+  { key: 'reply_src_address', label: 'Reply Src' },
+  { key: 'reply_dst_address', label: 'Reply Dst' },
+  { key: 'tcp_state', label: 'TCP State' },
+  { key: 'timeout', label: 'Timeout' },
+  { key: 'flags', label: 'Flags' },
+  { key: 'traffic', label: 'Trafic' }
+]
+
+const addressListColumns = [
+  { key: 'list', label: 'Liste' },
+  { key: 'address', label: 'Adresse' },
+  { key: 'timeout', label: 'Timeout' },
+  { key: 'creation_time', label: 'Creation' },
+  { key: 'dynamic', label: 'Type' },
+  { key: 'disabled', label: 'Status' },
+  { key: 'comment', label: 'Commentaire' }
+]
+
+// ==================== Computed ====================
+
+const addressListNames = computed(() => {
+  const names = [...new Set(addressListEntries.value.map(e => e.list))]
+  return names.sort()
+})
+
+const filteredAddressListEntries = computed(() => {
+  if (!addressListFilter.value) return addressListEntries.value
+  return addressListEntries.value.filter(e => e.list === addressListFilter.value)
+})
+
+// ==================== Helpers ====================
+
+function getActionClass(action) {
+  return { 'accept': 'badge-success', 'drop': 'badge-danger', 'reject': 'badge-danger', 'log': 'badge-warning', 'jump': 'badge-info', 'fasttrack-connection': 'badge-purple', 'passthrough': 'badge-info' }[action] || 'badge-info'
+}
 function getNatActionClass(action) {
-  const classes = {
-    'masquerade': 'badge-success',
-    'src-nat': 'badge-info',
-    'dst-nat': 'badge-purple',
-    'redirect': 'badge-warning',
-    'accept': 'badge-success'
-  }
-  return classes[action] || 'badge-info'
+  return { 'masquerade': 'badge-success', 'src-nat': 'badge-info', 'dst-nat': 'badge-purple', 'redirect': 'badge-warning', 'accept': 'badge-success', 'netmap': 'badge-info' }[action] || 'badge-info'
+}
+function getMangleActionClass(action) {
+  return { 'mark-packet': 'badge-purple', 'mark-connection': 'badge-info', 'mark-routing': 'badge-teal', 'change-mss': 'badge-warning', 'accept': 'badge-success', 'drop': 'badge-danger', 'passthrough': 'badge-info', 'fasttrack-connection': 'badge-purple', 'log': 'badge-warning' }[action] || 'badge-info'
+}
+function getRawActionClass(action) {
+  return { 'accept': 'badge-success', 'drop': 'badge-danger', 'notrack': 'badge-purple', 'log': 'badge-warning', 'jump': 'badge-info' }[action] || 'badge-info'
+}
+function getTcpStateClass(state) {
+  return { 'established': 'badge-success', 'time-wait': 'badge-warning', 'close-wait': 'badge-warning', 'close': 'badge-danger' }[state] || 'badge-info'
 }
 
 function formatBytes(bytes) {
@@ -413,182 +878,247 @@ function formatNumber(num) {
   return num.toLocaleString('fr-FR')
 }
 
+function buildPayload(form, fields) {
+  const payload = {}
+  for (const key of fields) {
+    const val = form[key]
+    if (val !== '' && val !== null && val !== undefined) {
+      payload[key] = val
+    }
+  }
+  return payload
+}
+
+// ==================== Fetch ====================
+
 async function fetchFilterRules() {
   loadingFilter.value = true
   try {
-    const response = await api.get(`/routers/${route.params.id}/firewall/filter`)
-    filterRules.value = response.data
-  } catch (error) {
-    notifications.error('Erreur lors du chargement des regles de filtrage')
-  } finally {
-    loadingFilter.value = false
-  }
+    const r = await api.get(`/routers/${routerId}/firewall/filter`)
+    filterRules.value = r.data
+  } catch { notifications.error('Erreur chargement regles de filtrage') }
+  finally { loadingFilter.value = false }
 }
 
 async function fetchNatRules() {
   loadingNat.value = true
   try {
-    const response = await api.get(`/routers/${route.params.id}/firewall/nat`)
-    natRules.value = response.data
-  } catch (error) {
-    notifications.error('Erreur lors du chargement des regles NAT')
-  } finally {
-    loadingNat.value = false
-  }
+    const r = await api.get(`/routers/${routerId}/firewall/nat`)
+    natRules.value = r.data
+  } catch { notifications.error('Erreur chargement regles NAT') }
+  finally { loadingNat.value = false }
 }
 
-async function toggleFilterRule(rule) {
-  toggling.value = rule.id
+async function fetchMangleRules() {
+  loadingMangle.value = true
   try {
-    await api.post(`/routers/${route.params.id}/firewall/filter/${rule.id}/toggle`, null, {
+    const r = await api.get(`/routers/${routerId}/firewall/mangle`)
+    mangleRules.value = r.data
+  } catch { notifications.error('Erreur chargement regles Mangle') }
+  finally { loadingMangle.value = false }
+}
+
+async function fetchRawRules() {
+  loadingRaw.value = true
+  try {
+    const r = await api.get(`/routers/${routerId}/firewall/raw`)
+    rawRules.value = r.data
+  } catch { notifications.error('Erreur chargement regles RAW') }
+  finally { loadingRaw.value = false }
+}
+
+async function fetchServicePorts() {
+  loadingServicePorts.value = true
+  try {
+    const r = await api.get(`/routers/${routerId}/firewall/service-ports`)
+    servicePorts.value = r.data
+  } catch { notifications.error('Erreur chargement service ports') }
+  finally { loadingServicePorts.value = false }
+}
+
+async function fetchConnections() {
+  loadingConnections.value = true
+  try {
+    const r = await api.get(`/routers/${routerId}/firewall/connections`)
+    connections.value = r.data
+  } catch { notifications.error('Erreur chargement connexions') }
+  finally { loadingConnections.value = false }
+}
+
+async function fetchAddressLists() {
+  loadingAddressLists.value = true
+  try {
+    const r = await api.get(`/routers/${routerId}/firewall/address-lists`)
+    addressListEntries.value = r.data
+  } catch { notifications.error('Erreur chargement address lists') }
+  finally { loadingAddressLists.value = false }
+}
+
+// ==================== Toggle / Delete generics ====================
+
+async function toggleRule(section, rule) {
+  togglingId.value = rule.id
+  try {
+    await api.post(`/routers/${routerId}/firewall/${section}/${rule.id}/toggle`, null, {
       params: { enable: rule.disabled }
     })
     notifications.success(`Regle ${rule.disabled ? 'activee' : 'desactivee'}`)
-    await fetchFilterRules()
-  } catch (error) {
-    notifications.error('Erreur lors du changement d\'etat')
-  } finally {
-    toggling.value = null
-  }
+    await fetchTab(section)
+  } catch { notifications.error('Erreur lors du changement d\'etat') }
+  finally { togglingId.value = null }
 }
 
-async function toggleNatRule(rule) {
-  togglingNat.value = rule.id
+async function deleteRule(section, rule) {
+  if (!confirm('Supprimer cette regle ?')) return
+  deletingId.value = rule.id
   try {
-    await api.post(`/routers/${route.params.id}/firewall/nat/${rule.id}/toggle`, null, {
-      params: { enable: rule.disabled }
-    })
-    notifications.success(`Regle NAT ${rule.disabled ? 'activee' : 'desactivee'}`)
-    await fetchNatRules()
-  } catch (error) {
-    notifications.error('Erreur lors du changement d\'etat')
-  } finally {
-    togglingNat.value = null
-  }
-}
-
-async function deleteFilterRule(rule) {
-  if (!confirm('Supprimer cette regle de filtrage ?')) return
-  deleting.value = rule.id
-  try {
-    await api.delete(`/routers/${route.params.id}/firewall/filter/${rule.id}`)
+    await api.delete(`/routers/${routerId}/firewall/${section}/${rule.id}`)
     notifications.success('Regle supprimee')
-    await fetchFilterRules()
-  } catch (error) {
-    notifications.error('Erreur lors de la suppression')
-  } finally {
-    deleting.value = null
-  }
+    await fetchTab(section)
+  } catch { notifications.error('Erreur lors de la suppression') }
+  finally { deletingId.value = null }
 }
 
-async function deleteNatRule(rule) {
-  if (!confirm('Supprimer cette regle NAT ?')) return
-  deletingNat.value = rule.id
+async function toggleServicePort(port) {
+  togglingId.value = port.id
   try {
-    await api.delete(`/routers/${route.params.id}/firewall/nat/${rule.id}`)
-    notifications.success('Regle NAT supprimee')
-    await fetchNatRules()
-  } catch (error) {
-    notifications.error('Erreur lors de la suppression')
-  } finally {
-    deletingNat.value = null
-  }
+    await api.post(`/routers/${routerId}/firewall/service-ports/${port.id}/toggle`, null, {
+      params: { enable: port.disabled }
+    })
+    notifications.success(`Service port ${port.disabled ? 'active' : 'desactive'}`)
+    await fetchServicePorts()
+  } catch { notifications.error('Erreur lors du changement d\'etat') }
+  finally { togglingId.value = null }
 }
+
+async function removeConnection(conn) {
+  if (!confirm('Supprimer cette connexion ?')) return
+  deletingId.value = conn.id
+  try {
+    await api.delete(`/routers/${routerId}/firewall/connections/${conn.id}`)
+    notifications.success('Connexion supprimee')
+    await fetchConnections()
+  } catch { notifications.error('Erreur lors de la suppression') }
+  finally { deletingId.value = null }
+}
+
+async function toggleAddressListEntry(entry) {
+  togglingId.value = entry.id
+  try {
+    await api.post(`/routers/${routerId}/firewall/address-lists/${entry.id}/toggle`, null, {
+      params: { enable: entry.disabled }
+    })
+    notifications.success(`Entree ${entry.disabled ? 'activee' : 'desactivee'}`)
+    await fetchAddressLists()
+  } catch { notifications.error('Erreur lors du changement d\'etat') }
+  finally { togglingId.value = null }
+}
+
+async function deleteAddressListEntry(entry) {
+  if (!confirm('Supprimer cette entree ?')) return
+  deletingId.value = entry.id
+  try {
+    await api.delete(`/routers/${routerId}/firewall/address-lists/${entry.id}`)
+    notifications.success('Entree supprimee')
+    await fetchAddressLists()
+  } catch { notifications.error('Erreur lors de la suppression') }
+  finally { deletingId.value = null }
+}
+
+// ==================== Add rules ====================
 
 async function addFilterRule() {
-  addingFilter.value = true
+  adding.value = true
   try {
-    const payload = {
-      chain: filterForm.chain,
-      action: filterForm.action,
-      disabled: filterForm.disabled
-    }
-    if (filterForm.src_address) payload.src_address = filterForm.src_address
-    if (filterForm.dst_address) payload.dst_address = filterForm.dst_address
-    if (filterForm.protocol) payload.protocol = filterForm.protocol
-    if (filterForm.src_port) payload.src_port = filterForm.src_port
-    if (filterForm.dst_port) payload.dst_port = filterForm.dst_port
-    if (filterForm.in_interface) payload.in_interface = filterForm.in_interface
-    if (filterForm.out_interface) payload.out_interface = filterForm.out_interface
-    if (filterForm.connection_state) payload.connection_state = filterForm.connection_state
-    if (filterForm.comment) payload.comment = filterForm.comment
-
-    await api.post(`/routers/${route.params.id}/firewall/filter`, payload)
+    const payload = buildPayload(filterForm, ['chain', 'action', 'src_address', 'dst_address', 'protocol', 'src_port', 'dst_port', 'in_interface', 'out_interface', 'connection_state', 'comment', 'disabled'])
+    await api.post(`/routers/${routerId}/firewall/filter`, payload)
     notifications.success('Regle de filtrage ajoutee')
     showFilterModal.value = false
-    resetFilterForm()
+    Object.assign(filterForm, { chain: 'forward', action: 'accept', src_address: '', dst_address: '', protocol: '', src_port: '', dst_port: '', in_interface: '', out_interface: '', connection_state: '', comment: '', disabled: false })
     await fetchFilterRules()
-  } catch (error) {
-    notifications.error('Erreur lors de l\'ajout de la regle')
-  } finally {
-    addingFilter.value = false
-  }
+  } catch { notifications.error('Erreur lors de l\'ajout') }
+  finally { adding.value = false }
 }
 
-async function addNatRuleSubmit() {
-  addingNat.value = true
+async function addNatRule() {
+  adding.value = true
   try {
-    const payload = {
-      chain: natForm.chain,
-      action: natForm.action,
-      disabled: natForm.disabled
-    }
-    if (natForm.src_address) payload.src_address = natForm.src_address
-    if (natForm.dst_address) payload.dst_address = natForm.dst_address
-    if (natForm.protocol) payload.protocol = natForm.protocol
-    if (natForm.src_port) payload.src_port = natForm.src_port
-    if (natForm.dst_port) payload.dst_port = natForm.dst_port
-    if (natForm.to_addresses) payload.to_addresses = natForm.to_addresses
-    if (natForm.to_ports) payload.to_ports = natForm.to_ports
-    if (natForm.in_interface) payload.in_interface = natForm.in_interface
-    if (natForm.out_interface) payload.out_interface = natForm.out_interface
-    if (natForm.comment) payload.comment = natForm.comment
-
-    await api.post(`/routers/${route.params.id}/firewall/nat`, payload)
+    const payload = buildPayload(natForm, ['chain', 'action', 'src_address', 'dst_address', 'protocol', 'src_port', 'dst_port', 'to_addresses', 'to_ports', 'in_interface', 'out_interface', 'comment', 'disabled'])
+    await api.post(`/routers/${routerId}/firewall/nat`, payload)
     notifications.success('Regle NAT ajoutee')
     showNatModal.value = false
-    resetNatForm()
+    Object.assign(natForm, { chain: 'srcnat', action: 'masquerade', src_address: '', dst_address: '', protocol: '', src_port: '', dst_port: '', to_addresses: '', to_ports: '', in_interface: '', out_interface: '', comment: '', disabled: false })
     await fetchNatRules()
-  } catch (error) {
-    notifications.error('Erreur lors de l\'ajout de la regle NAT')
-  } finally {
-    addingNat.value = false
+  } catch { notifications.error('Erreur lors de l\'ajout') }
+  finally { adding.value = false }
+}
+
+async function addMangleRule() {
+  adding.value = true
+  try {
+    const payload = buildPayload(mangleForm, ['chain', 'action', 'src_address', 'dst_address', 'src_address_list', 'dst_address_list', 'protocol', 'src_port', 'dst_port', 'in_interface', 'out_interface', 'connection_state', 'new_packet_mark', 'new_connection_mark', 'new_routing_mark', 'passthrough', 'comment', 'disabled'])
+    await api.post(`/routers/${routerId}/firewall/mangle`, payload)
+    notifications.success('Regle Mangle ajoutee')
+    showMangleModal.value = false
+    Object.assign(mangleForm, { chain: 'prerouting', action: 'mark-packet', src_address: '', dst_address: '', src_address_list: '', dst_address_list: '', protocol: '', src_port: '', dst_port: '', in_interface: '', out_interface: '', connection_state: '', new_packet_mark: '', new_connection_mark: '', new_routing_mark: '', passthrough: true, comment: '', disabled: false })
+    await fetchMangleRules()
+  } catch { notifications.error('Erreur lors de l\'ajout') }
+  finally { adding.value = false }
+}
+
+async function addRawRule() {
+  adding.value = true
+  try {
+    const payload = buildPayload(rawForm, ['chain', 'action', 'src_address', 'dst_address', 'src_address_list', 'dst_address_list', 'protocol', 'src_port', 'dst_port', 'in_interface', 'out_interface', 'connection_state', 'comment', 'disabled'])
+    await api.post(`/routers/${routerId}/firewall/raw`, payload)
+    notifications.success('Regle RAW ajoutee')
+    showRawModal.value = false
+    Object.assign(rawForm, { chain: 'prerouting', action: 'drop', src_address: '', dst_address: '', src_address_list: '', dst_address_list: '', protocol: '', src_port: '', dst_port: '', in_interface: '', out_interface: '', connection_state: '', comment: '', disabled: false })
+    await fetchRawRules()
+  } catch { notifications.error('Erreur lors de l\'ajout') }
+  finally { adding.value = false }
+}
+
+async function addAddressListEntry() {
+  adding.value = true
+  try {
+    const payload = buildPayload(addressListForm, ['list', 'address', 'timeout', 'comment', 'disabled'])
+    await api.post(`/routers/${routerId}/firewall/address-lists`, payload)
+    notifications.success('Entree ajoutee')
+    showAddressListModal.value = false
+    Object.assign(addressListForm, { list: '', address: '', timeout: '', comment: '', disabled: false })
+    await fetchAddressLists()
+  } catch { notifications.error('Erreur lors de l\'ajout') }
+  finally { adding.value = false }
+}
+
+// ==================== Tab loading ====================
+
+const fetchMap = {
+  filter: fetchFilterRules,
+  nat: fetchNatRules,
+  mangle: fetchMangleRules,
+  raw: fetchRawRules,
+  'service-ports': fetchServicePorts,
+  connections: fetchConnections,
+  'address-lists': fetchAddressLists
+}
+
+const loaded = reactive({})
+
+async function fetchTab(tab) {
+  if (fetchMap[tab]) await fetchMap[tab]()
+}
+
+watch(activeTab, (tab) => {
+  if (!loaded[tab]) {
+    loaded[tab] = true
+    fetchTab(tab)
   }
-}
-
-function resetFilterForm() {
-  filterForm.chain = 'forward'
-  filterForm.action = 'accept'
-  filterForm.src_address = ''
-  filterForm.dst_address = ''
-  filterForm.protocol = ''
-  filterForm.src_port = ''
-  filterForm.dst_port = ''
-  filterForm.in_interface = ''
-  filterForm.out_interface = ''
-  filterForm.connection_state = ''
-  filterForm.comment = ''
-  filterForm.disabled = false
-}
-
-function resetNatForm() {
-  natForm.chain = 'srcnat'
-  natForm.action = 'masquerade'
-  natForm.src_address = ''
-  natForm.dst_address = ''
-  natForm.protocol = ''
-  natForm.src_port = ''
-  natForm.dst_port = ''
-  natForm.to_addresses = ''
-  natForm.to_ports = ''
-  natForm.in_interface = ''
-  natForm.out_interface = ''
-  natForm.comment = ''
-  natForm.disabled = false
-}
+})
 
 onMounted(() => {
+  loaded.filter = true
   fetchFilterRules()
-  fetchNatRules()
 })
 </script>

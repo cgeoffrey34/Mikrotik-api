@@ -355,6 +355,155 @@ class NATRuleCreate(BaseModel):
     disabled: bool = False
 
 
+# Mangle schemas
+class MangleRule(BaseModel):
+    id: str
+    chain: str
+    action: str
+    src_address: Optional[str] = None
+    dst_address: Optional[str] = None
+    src_address_list: Optional[str] = None
+    dst_address_list: Optional[str] = None
+    protocol: Optional[str] = None
+    src_port: Optional[str] = None
+    dst_port: Optional[str] = None
+    in_interface: Optional[str] = None
+    in_interface_list: Optional[str] = None
+    out_interface: Optional[str] = None
+    out_interface_list: Optional[str] = None
+    connection_state: Optional[str] = None
+    new_packet_mark: Optional[str] = None
+    new_connection_mark: Optional[str] = None
+    new_routing_mark: Optional[str] = None
+    passthrough: bool = True
+    disabled: bool = False
+    invalid: bool = False
+    dynamic: bool = False
+    comment: Optional[str] = None
+    bytes: Optional[int] = None
+    packets: Optional[int] = None
+    log: bool = False
+    log_prefix: Optional[str] = None
+    connection_mark: Optional[str] = None
+    packet_mark: Optional[str] = None
+    routing_mark: Optional[str] = None
+
+
+class MangleRuleCreate(BaseModel):
+    chain: str
+    action: str
+    src_address: Optional[str] = None
+    dst_address: Optional[str] = None
+    src_address_list: Optional[str] = None
+    dst_address_list: Optional[str] = None
+    protocol: Optional[str] = None
+    src_port: Optional[str] = None
+    dst_port: Optional[str] = None
+    in_interface: Optional[str] = None
+    out_interface: Optional[str] = None
+    connection_state: Optional[str] = None
+    new_packet_mark: Optional[str] = None
+    new_connection_mark: Optional[str] = None
+    new_routing_mark: Optional[str] = None
+    passthrough: bool = True
+    comment: Optional[str] = None
+    disabled: bool = False
+
+
+# RAW schemas
+class RawRule(BaseModel):
+    id: str
+    chain: str
+    action: str
+    src_address: Optional[str] = None
+    dst_address: Optional[str] = None
+    src_address_list: Optional[str] = None
+    dst_address_list: Optional[str] = None
+    protocol: Optional[str] = None
+    src_port: Optional[str] = None
+    dst_port: Optional[str] = None
+    in_interface: Optional[str] = None
+    in_interface_list: Optional[str] = None
+    out_interface: Optional[str] = None
+    out_interface_list: Optional[str] = None
+    connection_state: Optional[str] = None
+    disabled: bool = False
+    invalid: bool = False
+    dynamic: bool = False
+    comment: Optional[str] = None
+    bytes: Optional[int] = None
+    packets: Optional[int] = None
+    log: bool = False
+    log_prefix: Optional[str] = None
+
+
+class RawRuleCreate(BaseModel):
+    chain: str
+    action: str
+    src_address: Optional[str] = None
+    dst_address: Optional[str] = None
+    src_address_list: Optional[str] = None
+    dst_address_list: Optional[str] = None
+    protocol: Optional[str] = None
+    src_port: Optional[str] = None
+    dst_port: Optional[str] = None
+    in_interface: Optional[str] = None
+    out_interface: Optional[str] = None
+    connection_state: Optional[str] = None
+    comment: Optional[str] = None
+    disabled: bool = False
+
+
+# Service Port schemas
+class ServicePort(BaseModel):
+    id: str
+    name: str
+    ports: Optional[str] = None
+    disabled: bool = False
+    invalid: bool = False
+
+
+# Connection schemas
+class ConnectionEntry(BaseModel):
+    id: str
+    protocol: Optional[str] = None
+    src_address: Optional[str] = None
+    dst_address: Optional[str] = None
+    reply_src_address: Optional[str] = None
+    reply_dst_address: Optional[str] = None
+    tcp_state: Optional[str] = None
+    timeout: Optional[str] = None
+    connection_mark: Optional[str] = None
+    assured: bool = False
+    confirmed: bool = False
+    dying: bool = False
+    fasttrack: bool = False
+    orig_bytes: Optional[int] = None
+    repl_bytes: Optional[int] = None
+    orig_packets: Optional[int] = None
+    repl_packets: Optional[int] = None
+
+
+# Address List schemas
+class AddressListEntry(BaseModel):
+    id: str
+    list: str
+    address: str
+    timeout: Optional[str] = None
+    creation_time: Optional[str] = None
+    disabled: bool = False
+    dynamic: bool = False
+    comment: Optional[str] = None
+
+
+class AddressListEntryCreate(BaseModel):
+    list: str
+    address: str
+    timeout: Optional[str] = None
+    comment: Optional[str] = None
+    disabled: bool = False
+
+
 # DNS schemas
 class DNSEntry(BaseModel):
     id: str

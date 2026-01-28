@@ -12,6 +12,8 @@ from ..schemas import (
     Bridge, BridgePort, BridgeVlan,
     IPAddress, Route,
     FirewallRule, FirewallRuleCreate, NATRule, NATRuleCreate,
+    MangleRule, MangleRuleCreate, RawRule, RawRuleCreate,
+    ServicePort, ConnectionEntry, AddressListEntry, AddressListEntryCreate,
     DNSEntry, DNSEntryCreate, DNSSettings,
     QueueRule
 )
@@ -466,6 +468,204 @@ async def toggle_nat_rule(
     success = service.toggle_nat_rule(rule_id, enable)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to toggle NAT rule")
+    return {"success": True}
+
+
+# ==================== Mangle ====================
+
+@router.get("/firewall/mangle", response_model=List[MangleRule])
+async def get_mangle_rules(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get mangle rules."""
+    _, service = await get_router_service(router_id, db)
+    rules = service.get_mangle_rules()
+    return [MangleRule(**rule) for rule in rules]
+
+
+@router.post("/firewall/mangle")
+async def add_mangle_rule(
+    router_id: int,
+    rule: MangleRuleCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a mangle rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_mangle_rule(**rule.model_dump(exclude_none=True))
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add mangle rule")
+    return {"success": True}
+
+
+@router.delete("/firewall/mangle/{rule_id}")
+async def delete_mangle_rule(router_id: int, rule_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a mangle rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_mangle_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete mangle rule")
+    return {"success": True}
+
+
+@router.post("/firewall/mangle/{rule_id}/toggle")
+async def toggle_mangle_rule(
+    router_id: int,
+    rule_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a mangle rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_mangle_rule(rule_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle mangle rule")
+    return {"success": True}
+
+
+# ==================== RAW ====================
+
+@router.get("/firewall/raw", response_model=List[RawRule])
+async def get_raw_rules(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get RAW firewall rules."""
+    _, service = await get_router_service(router_id, db)
+    rules = service.get_raw_rules()
+    return [RawRule(**rule) for rule in rules]
+
+
+@router.post("/firewall/raw")
+async def add_raw_rule(
+    router_id: int,
+    rule: RawRuleCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a RAW firewall rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_raw_rule(**rule.model_dump(exclude_none=True))
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add RAW rule")
+    return {"success": True}
+
+
+@router.delete("/firewall/raw/{rule_id}")
+async def delete_raw_rule(router_id: int, rule_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a RAW rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_raw_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete RAW rule")
+    return {"success": True}
+
+
+@router.post("/firewall/raw/{rule_id}/toggle")
+async def toggle_raw_rule(
+    router_id: int,
+    rule_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a RAW rule."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_raw_rule(rule_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle RAW rule")
+    return {"success": True}
+
+
+# ==================== Service Ports ====================
+
+@router.get("/firewall/service-ports", response_model=List[ServicePort])
+async def get_service_ports(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get firewall service ports (ALG helpers)."""
+    _, service = await get_router_service(router_id, db)
+    ports = service.get_service_ports()
+    return [ServicePort(**p) for p in ports]
+
+
+@router.post("/firewall/service-ports/{port_id}/toggle")
+async def toggle_service_port(
+    router_id: int,
+    port_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a service port."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_service_port(port_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle service port")
+    return {"success": True}
+
+
+# ==================== Connections ====================
+
+@router.get("/firewall/connections", response_model=List[ConnectionEntry])
+async def get_connections(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get active firewall connections."""
+    _, service = await get_router_service(router_id, db)
+    conns = service.get_connections()
+    return [ConnectionEntry(**c) for c in conns]
+
+
+@router.delete("/firewall/connections/{conn_id}")
+async def remove_connection(router_id: int, conn_id: str, db: AsyncSession = Depends(get_db)):
+    """Remove a connection from the tracking table."""
+    _, service = await get_router_service(router_id, db)
+    success = service.remove_connection(conn_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to remove connection")
+    return {"success": True}
+
+
+# ==================== Address Lists ====================
+
+@router.get("/firewall/address-lists", response_model=List[AddressListEntry])
+async def get_address_lists(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get firewall address list entries."""
+    _, service = await get_router_service(router_id, db)
+    entries = service.get_address_lists()
+    return [AddressListEntry(**e) for e in entries]
+
+
+@router.post("/firewall/address-lists")
+async def add_address_list_entry(
+    router_id: int,
+    entry: AddressListEntryCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add an entry to a firewall address list."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_address_list_entry(
+        list_name=entry.list,
+        address=entry.address,
+        timeout=entry.timeout or "",
+        comment=entry.comment or "",
+        disabled=entry.disabled
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add address list entry")
+    return {"success": True}
+
+
+@router.delete("/firewall/address-lists/{entry_id}")
+async def delete_address_list_entry(router_id: int, entry_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete an address list entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_address_list_entry(entry_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete address list entry")
+    return {"success": True}
+
+
+@router.post("/firewall/address-lists/{entry_id}/toggle")
+async def toggle_address_list_entry(
+    router_id: int,
+    entry_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable an address list entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_address_list_entry(entry_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle address list entry")
     return {"success": True}
 
 
