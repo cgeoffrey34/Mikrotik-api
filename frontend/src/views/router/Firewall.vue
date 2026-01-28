@@ -23,12 +23,27 @@
     <div v-if="activeTab === 'filter'">
       <div class="card">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Regles de filtrage</h3>
+          <h3 class="text-lg font-medium text-gray-900">Regles de filtrage ({{ filteredFilterRules.length }}/{{ filterRules.length }})</h3>
           <button @click="showFilterModal = true" class="btn btn-primary text-sm">
             <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle
           </button>
         </div>
-        <DataTable :columns="filterColumns" :data="filterRules" :loading="loadingFilter" empty-message="Aucune regle de filtrage">
+
+        <!-- Filters -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="filterChains.length > 1 || filterActions.length > 1">
+          <div v-if="filterChains.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Chaine:</span>
+            <button @click="filterChainFilter = ''" :class="[!filterChainFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="chain in filterChains" :key="chain" @click="filterChainFilter = chain" :class="[filterChainFilter === chain ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ chain }}</button>
+          </div>
+          <div v-if="filterActions.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Action:</span>
+            <button @click="filterActionFilter = ''" :class="[!filterActionFilter ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="action in filterActions" :key="action" @click="filterActionFilter = action" :class="[filterActionFilter === action ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ action }}</button>
+          </div>
+        </div>
+
+        <DataTable :columns="filterColumns" :data="filteredFilterRules" :loading="loadingFilter" empty-message="Aucune regle de filtrage">
           <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
           <template #cell-action="{ row }"><span :class="[getActionClass(row.action), 'badge']">{{ row.action }}</span></template>
           <template #cell-disabled="{ row }">
@@ -53,12 +68,27 @@
     <div v-if="activeTab === 'nat'">
       <div class="card">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Regles NAT</h3>
+          <h3 class="text-lg font-medium text-gray-900">Regles NAT ({{ filteredNatRules.length }}/{{ natRules.length }})</h3>
           <button @click="showNatModal = true" class="btn btn-primary text-sm">
             <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle NAT
           </button>
         </div>
-        <DataTable :columns="natColumns" :data="natRules" :loading="loadingNat" empty-message="Aucune regle NAT">
+
+        <!-- Filters -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="natChains.length > 1 || natActions.length > 1">
+          <div v-if="natChains.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Chaine:</span>
+            <button @click="natChainFilter = ''" :class="[!natChainFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="chain in natChains" :key="chain" @click="natChainFilter = chain" :class="[natChainFilter === chain ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ chain }}</button>
+          </div>
+          <div v-if="natActions.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Action:</span>
+            <button @click="natActionFilter = ''" :class="[!natActionFilter ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="action in natActions" :key="action" @click="natActionFilter = action" :class="[natActionFilter === action ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ action }}</button>
+          </div>
+        </div>
+
+        <DataTable :columns="natColumns" :data="filteredNatRules" :loading="loadingNat" empty-message="Aucune regle NAT">
           <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
           <template #cell-action="{ row }"><span :class="[getNatActionClass(row.action), 'badge']">{{ row.action }}</span></template>
           <template #cell-disabled="{ row }">
@@ -83,12 +113,27 @@
     <div v-if="activeTab === 'mangle'">
       <div class="card">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Regles Mangle</h3>
+          <h3 class="text-lg font-medium text-gray-900">Regles Mangle ({{ filteredMangleRules.length }}/{{ mangleRules.length }})</h3>
           <button @click="showMangleModal = true" class="btn btn-primary text-sm">
             <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle Mangle
           </button>
         </div>
-        <DataTable :columns="mangleColumns" :data="mangleRules" :loading="loadingMangle" empty-message="Aucune regle Mangle">
+
+        <!-- Filters -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="mangleChains.length > 1 || mangleActions.length > 1">
+          <div v-if="mangleChains.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Chaine:</span>
+            <button @click="mangleChainFilter = ''" :class="[!mangleChainFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="chain in mangleChains" :key="chain" @click="mangleChainFilter = chain" :class="[mangleChainFilter === chain ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ chain }}</button>
+          </div>
+          <div v-if="mangleActions.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Action:</span>
+            <button @click="mangleActionFilter = ''" :class="[!mangleActionFilter ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="action in mangleActions" :key="action" @click="mangleActionFilter = action" :class="[mangleActionFilter === action ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ action }}</button>
+          </div>
+        </div>
+
+        <DataTable :columns="mangleColumns" :data="filteredMangleRules" :loading="loadingMangle" empty-message="Aucune regle Mangle">
           <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
           <template #cell-action="{ row }"><span :class="[getMangleActionClass(row.action), 'badge']">{{ row.action }}</span></template>
           <template #cell-marks="{ row }">
@@ -123,12 +168,27 @@
     <div v-if="activeTab === 'raw'">
       <div class="card">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Regles RAW</h3>
+          <h3 class="text-lg font-medium text-gray-900">Regles RAW ({{ filteredRawRules.length }}/{{ rawRules.length }})</h3>
           <button @click="showRawModal = true" class="btn btn-primary text-sm">
             <PlusIcon class="w-4 h-4 mr-1" /> Ajouter une regle RAW
           </button>
         </div>
-        <DataTable :columns="rawColumns" :data="rawRules" :loading="loadingRaw" empty-message="Aucune regle RAW">
+
+        <!-- Filters -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="rawChains.length > 1 || rawActions.length > 1">
+          <div v-if="rawChains.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Chaine:</span>
+            <button @click="rawChainFilter = ''" :class="[!rawChainFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="chain in rawChains" :key="chain" @click="rawChainFilter = chain" :class="[rawChainFilter === chain ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ chain }}</button>
+          </div>
+          <div v-if="rawActions.length > 1" class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Action:</span>
+            <button @click="rawActionFilter = ''" :class="[!rawActionFilter ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Toutes</button>
+            <button v-for="action in rawActions" :key="action" @click="rawActionFilter = action" :class="[rawActionFilter === action ? 'bg-green-100 text-green-800 border-green-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ action }}</button>
+          </div>
+        </div>
+
+        <DataTable :columns="rawColumns" :data="filteredRawRules" :loading="loadingRaw" empty-message="Aucune regle RAW">
           <template #cell-chain="{ row }"><span class="badge badge-info">{{ row.chain }}</span></template>
           <template #cell-action="{ row }"><span :class="[getRawActionClass(row.action), 'badge']">{{ row.action }}</span></template>
           <template #cell-disabled="{ row }">
@@ -704,6 +764,16 @@ const connections = ref([])
 const addressListEntries = ref([])
 const addressListFilter = ref('')
 
+// Chain and action filters for each section
+const filterChainFilter = ref('')
+const filterActionFilter = ref('')
+const natChainFilter = ref('')
+const natActionFilter = ref('')
+const mangleChainFilter = ref('')
+const mangleActionFilter = ref('')
+const rawChainFilter = ref('')
+const rawActionFilter = ref('')
+
 const loadingFilter = ref(false)
 const loadingNat = ref(false)
 const loadingMangle = ref(false)
@@ -837,6 +907,47 @@ const addressListColumns = [
 
 // ==================== Computed ====================
 
+// Filter rules - unique values and filtered data
+const filterChains = computed(() => [...new Set(filterRules.value.map(r => r.chain).filter(Boolean))].sort())
+const filterActions = computed(() => [...new Set(filterRules.value.map(r => r.action).filter(Boolean))].sort())
+const filteredFilterRules = computed(() => {
+  let rules = filterRules.value
+  if (filterChainFilter.value) rules = rules.filter(r => r.chain === filterChainFilter.value)
+  if (filterActionFilter.value) rules = rules.filter(r => r.action === filterActionFilter.value)
+  return rules
+})
+
+// NAT rules - unique values and filtered data
+const natChains = computed(() => [...new Set(natRules.value.map(r => r.chain).filter(Boolean))].sort())
+const natActions = computed(() => [...new Set(natRules.value.map(r => r.action).filter(Boolean))].sort())
+const filteredNatRules = computed(() => {
+  let rules = natRules.value
+  if (natChainFilter.value) rules = rules.filter(r => r.chain === natChainFilter.value)
+  if (natActionFilter.value) rules = rules.filter(r => r.action === natActionFilter.value)
+  return rules
+})
+
+// Mangle rules - unique values and filtered data
+const mangleChains = computed(() => [...new Set(mangleRules.value.map(r => r.chain).filter(Boolean))].sort())
+const mangleActions = computed(() => [...new Set(mangleRules.value.map(r => r.action).filter(Boolean))].sort())
+const filteredMangleRules = computed(() => {
+  let rules = mangleRules.value
+  if (mangleChainFilter.value) rules = rules.filter(r => r.chain === mangleChainFilter.value)
+  if (mangleActionFilter.value) rules = rules.filter(r => r.action === mangleActionFilter.value)
+  return rules
+})
+
+// RAW rules - unique values and filtered data
+const rawChains = computed(() => [...new Set(rawRules.value.map(r => r.chain).filter(Boolean))].sort())
+const rawActions = computed(() => [...new Set(rawRules.value.map(r => r.action).filter(Boolean))].sort())
+const filteredRawRules = computed(() => {
+  let rules = rawRules.value
+  if (rawChainFilter.value) rules = rules.filter(r => r.chain === rawChainFilter.value)
+  if (rawActionFilter.value) rules = rules.filter(r => r.action === rawActionFilter.value)
+  return rules
+})
+
+// Address list unique names
 const addressListNames = computed(() => {
   const names = [...new Set(addressListEntries.value.map(e => e.list))]
   return names.sort()
