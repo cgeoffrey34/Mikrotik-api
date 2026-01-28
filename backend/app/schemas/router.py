@@ -267,7 +267,9 @@ class Route(BaseModel):
     disabled: bool = False
     dynamic: bool = False
     static: bool = False
+    connect: bool = False
     active: bool = False
+    route_type: str = "other"
     routing_table: Optional[str] = None
     comment: Optional[str] = None
 

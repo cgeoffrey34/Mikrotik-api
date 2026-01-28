@@ -685,8 +685,42 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 routes = list(api.path("/ip/route"))
-                return [
-                    {
+                result = []
+                for route in routes:
+                    is_static = route.get("static", "false") == "true"
+                    is_dynamic = route.get("dynamic", "false") == "true"
+                    is_connect = route.get("connect", "false") == "true"
+                    is_ospf = route.get("ospf", "false") == "true"
+                    is_bgp = route.get("bgp", "false") == "true"
+                    is_rip = route.get("rip", "false") == "true"
+                    is_dhcp = route.get("dhcp", "false") == "true"
+                    is_vpn = route.get("vpn", "false") == "true"
+                    is_modem = route.get("modem", "false") == "true"
+
+                    # Determine route type
+                    gw_status = route.get("gateway-status", "").lower()
+                    if is_connect:
+                        route_type = "connected"
+                    elif is_static:
+                        route_type = "static"
+                    elif is_ospf or "ospf" in gw_status:
+                        route_type = "ospf"
+                    elif is_bgp or "bgp" in gw_status:
+                        route_type = "bgp"
+                    elif is_rip or "rip" in gw_status:
+                        route_type = "rip"
+                    elif is_dhcp or "dhcp" in gw_status:
+                        route_type = "dhcp"
+                    elif is_vpn or "vpn" in gw_status:
+                        route_type = "vpn"
+                    elif is_modem:
+                        route_type = "modem"
+                    elif is_dynamic:
+                        route_type = "dynamic"
+                    else:
+                        route_type = "other"
+
+                    result.append({
                         "id": route.get(".id", ""),
                         "dst_address": route.get("dst-address", ""),
                         "gateway": route.get("gateway", ""),
@@ -695,14 +729,15 @@ class MikrotikService:
                         "scope": self._safe_int(route.get("scope", 0)),
                         "interface": route.get("interface", ""),
                         "disabled": route.get("disabled", "false") == "true",
-                        "dynamic": route.get("dynamic", "false") == "true",
-                        "static": route.get("static", "false") == "true",
+                        "dynamic": is_dynamic,
+                        "static": is_static,
+                        "connect": is_connect,
                         "active": route.get("active", "false") == "true",
+                        "route_type": route_type,
                         "routing_table": route.get("routing-table", "main"),
                         "comment": route.get("comment", "")
-                    }
-                    for route in routes
-                ]
+                    })
+                return result
         except Exception as e:
             logger.error(f"Error getting routes: {e}")
             return []
