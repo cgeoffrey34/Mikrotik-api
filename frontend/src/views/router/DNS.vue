@@ -106,7 +106,7 @@
         </div>
 
         <!-- Type filter -->
-        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="entryTypes.length > 1">
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="entries.length > 0">
           <div class="flex items-center gap-2">
             <span class="text-sm font-medium text-gray-600">Type:</span>
             <button @click="entryTypeFilter = ''" :class="[!entryTypeFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Tous</button>
