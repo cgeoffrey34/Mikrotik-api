@@ -426,8 +426,8 @@ class MikrotikService:
                                 "authentication_types": self._safe_str(profile.get("authentication-types", "")),
                                 "unicast_ciphers": self._safe_str(profile.get("unicast-ciphers", "")),
                                 "group_ciphers": self._safe_str(profile.get("group-ciphers", "")),
-                                "wpa_pre_shared_key": "****" if profile.get("wpa-pre-shared-key") else "",
-                                "wpa2_pre_shared_key": "****" if profile.get("wpa2-pre-shared-key") else "",
+                                "wpa_pre_shared_key": self._safe_str(profile.get("wpa-pre-shared-key", "")),
+                                "wpa2_pre_shared_key": self._safe_str(profile.get("wpa2-pre-shared-key", "")),
                                 "profile_type": "wireless",
                                 "default": self._is_true(profile.get("default", False)),
                                 "comment": self._safe_str(profile.get("comment", ""))
@@ -449,7 +449,7 @@ class MikrotikService:
                                 "authentication_types": self._safe_str(sec.get("authentication-types", "")),
                                 "unicast_ciphers": self._safe_str(sec.get("unicast-ciphers", "")),
                                 "group_ciphers": self._safe_str(sec.get("group-ciphers", "")),
-                                "passphrase": "****" if sec.get("passphrase") else "",
+                                "passphrase": self._safe_str(sec.get("passphrase", "")),
                                 "profile_type": "wifi",
                                 "default": self._is_true(sec.get("default", False)),
                                 "comment": self._safe_str(sec.get("comment", ""))

@@ -106,9 +106,25 @@
             <span v-if="row.group_ciphers" class="text-sm">{{ row.group_ciphers }}</span>
             <span v-else class="text-gray-400">-</span>
           </template>
-          <template #cell-key_set="{ row }">
-            <span v-if="row.wpa_pre_shared_key || row.wpa2_pre_shared_key || row.passphrase" class="badge badge-success">Oui</span>
-            <span v-else class="badge badge-warning">Non</span>
+          <template #cell-password="{ row }">
+            <div v-if="row.wpa_pre_shared_key || row.wpa2_pre_shared_key || row.passphrase" class="space-y-1">
+              <div v-if="row.wpa_pre_shared_key" class="flex items-center gap-1 text-sm">
+                <span class="text-gray-500">WPA:</span>
+                <code class="bg-gray-100 px-1 rounded">{{ showPasswords[row.id] ? row.wpa_pre_shared_key : '••••••••' }}</code>
+              </div>
+              <div v-if="row.wpa2_pre_shared_key" class="flex items-center gap-1 text-sm">
+                <span class="text-gray-500">WPA2:</span>
+                <code class="bg-gray-100 px-1 rounded">{{ showPasswords[row.id] ? row.wpa2_pre_shared_key : '••••••••' }}</code>
+              </div>
+              <div v-if="row.passphrase" class="flex items-center gap-1 text-sm">
+                <span class="text-gray-500">Pass:</span>
+                <code class="bg-gray-100 px-1 rounded">{{ showPasswords[row.id] ? row.passphrase : '••••••••' }}</code>
+              </div>
+              <button @click="showPasswords[row.id] = !showPasswords[row.id]" class="text-xs text-blue-600 hover:text-blue-800">
+                {{ showPasswords[row.id] ? 'Masquer' : 'Afficher' }}
+              </button>
+            </div>
+            <span v-else class="text-gray-400">-</span>
           </template>
           <template #actions="{ row }">
             <div class="flex items-center gap-2">
@@ -428,6 +444,9 @@ const showAccessModal = ref(false)
 const editingProfile = ref(null)
 const editingIface = ref(null)
 
+// Password visibility toggle
+const showPasswords = reactive({})
+
 // Filters
 const clientInterfaceFilter = ref('')
 
@@ -484,7 +503,7 @@ const profileColumns = [
   { key: 'authentication_types', label: 'Auth. types' },
   { key: 'unicast_ciphers', label: 'Unicast ciphers' },
   { key: 'group_ciphers', label: 'Group ciphers' },
-  { key: 'key_set', label: 'Cle definie' },
+  { key: 'password', label: 'Mot de passe' },
   { key: 'comment', label: 'Commentaire' }
 ]
 
