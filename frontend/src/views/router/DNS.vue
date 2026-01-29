@@ -98,14 +98,23 @@
     <div v-if="activeTab === 'static'">
       <div class="card">
         <div class="p-6 border-b border-gray-200 flex items-center justify-between">
-          <h3 class="text-lg font-medium text-gray-900">Entrees DNS statiques ({{ entries.length }})</h3>
+          <h3 class="text-lg font-medium text-gray-900">Entrees DNS statiques ({{ filteredEntries.length }}/{{ entries.length }})</h3>
           <button @click="showAddModal = true" class="btn btn-primary text-sm">
             <PlusIcon class="w-4 h-4 mr-1" />
             Ajouter une entree
           </button>
         </div>
 
-        <DataTable :columns="columns" :data="entries" :loading="loading" empty-message="Aucune entree DNS">
+        <!-- Type filter -->
+        <div class="px-6 py-3 border-b border-gray-100 bg-gray-50 flex flex-wrap gap-4" v-if="entryTypes.length > 1">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-medium text-gray-600">Type:</span>
+            <button @click="entryTypeFilter = ''" :class="[!entryTypeFilter ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">Tous</button>
+            <button v-for="t in entryTypes" :key="t" @click="entryTypeFilter = t" :class="[entryTypeFilter === t ? 'bg-blue-100 text-blue-800 border-blue-300' : 'bg-white text-gray-600 border-gray-300', 'px-2 py-1 rounded text-xs font-medium border']">{{ t }}</button>
+          </div>
+        </div>
+
+        <DataTable :columns="columns" :data="filteredEntries" :loading="loading" empty-message="Aucune entree DNS">
           <template #cell-name="{ row }">
             <span class="font-medium text-gray-900">{{ row.name }}</span>
           </template>
@@ -409,6 +418,7 @@ const adding = ref(false)
 const savingSettings = ref(false)
 
 // Filters
+const entryTypeFilter = ref('')
 const cacheTypeFilter = ref('')
 const cacheSearchFilter = ref('')
 
@@ -459,6 +469,15 @@ const cacheColumns = [
 ]
 
 // Computed
+const entryTypes = computed(() => {
+  return [...new Set(entries.value.map(e => e.type || 'A').filter(Boolean))].sort()
+})
+
+const filteredEntries = computed(() => {
+  if (!entryTypeFilter.value) return entries.value
+  return entries.value.filter(e => (e.type || 'A') === entryTypeFilter.value)
+})
+
 const cacheUsagePercent = computed(() => {
   if (!settings.value || !settings.value.cache_size) return 0
   return Math.round((settings.value.cache_used / settings.value.cache_size) * 100)
