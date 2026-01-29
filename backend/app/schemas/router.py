@@ -109,6 +109,19 @@ class DHCPLease(BaseModel):
     last_seen: Optional[str] = None
     comment: Optional[str] = None
     dynamic: bool = False
+    disabled: bool = False
+    blocked: bool = False
+    active_address: Optional[str] = None
+    active_mac_address: Optional[str] = None
+
+
+class DHCPLeaseCreate(BaseModel):
+    address: str
+    mac_address: str
+    server: str = "default"
+    hostname: Optional[str] = None
+    comment: Optional[str] = None
+    disabled: bool = False
 
 
 class DHCPServer(BaseModel):
@@ -121,6 +134,24 @@ class DHCPServer(BaseModel):
     invalid: bool = False
     authoritative: Optional[str] = None
     use_radius: bool = False
+    comment: Optional[str] = None
+
+
+class DHCPServerCreate(BaseModel):
+    name: str
+    interface: str
+    address_pool: str
+    lease_time: str = "10m"
+    authoritative: str = "yes"
+    disabled: bool = False
+    comment: Optional[str] = None
+
+
+class DHCPServerUpdate(BaseModel):
+    lease_time: Optional[str] = None
+    address_pool: Optional[str] = None
+    authoritative: Optional[str] = None
+    comment: Optional[str] = None
 
 
 class DHCPNetwork(BaseModel):
@@ -133,6 +164,25 @@ class DHCPNetwork(BaseModel):
     ntp_server: Optional[str] = None
     wins_server: Optional[str] = None
     comment: Optional[str] = None
+    dhcp_option: Optional[str] = None
+    dhcp_option_set: Optional[str] = None
+
+
+class DHCPNetworkCreate(BaseModel):
+    address: str
+    gateway: Optional[str] = None
+    dns_server: Optional[str] = None
+    domain: Optional[str] = None
+    ntp_server: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class DHCPNetworkUpdate(BaseModel):
+    gateway: Optional[str] = None
+    dns_server: Optional[str] = None
+    domain: Optional[str] = None
+    ntp_server: Optional[str] = None
+    comment: Optional[str] = None
 
 
 class IPPool(BaseModel):
@@ -140,6 +190,38 @@ class IPPool(BaseModel):
     name: str
     ranges: str
     next_pool: Optional[str] = None
+    comment: Optional[str] = None
+    total: int = 0
+    used: int = 0
+    available: int = 0
+
+
+class IPPoolCreate(BaseModel):
+    name: str
+    ranges: str
+    next_pool: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class IPPoolUpdate(BaseModel):
+    ranges: Optional[str] = None
+    next_pool: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class DHCPOption(BaseModel):
+    id: str
+    name: str
+    code: int = 0
+    value: Optional[str] = None
+    raw_value: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class DHCPOptionCreate(BaseModel):
+    name: str
+    code: int
+    value: Optional[str] = None
     comment: Optional[str] = None
 
 

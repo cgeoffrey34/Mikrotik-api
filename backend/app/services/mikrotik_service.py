@@ -163,28 +163,35 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 leases = list(api.path("/ip/dhcp-server/lease"))
-                return [
-                    {
-                        "id": lease.get(".id", ""),
-                        "address": lease.get("address", ""),
-                        "mac_address": lease.get("mac-address", ""),
-                        "client_id": lease.get("client-id", ""),
-                        "hostname": lease.get("host-name", ""),
-                        "server": lease.get("server", ""),
-                        "status": lease.get("status", ""),
-                        "expires_after": lease.get("expires-after", ""),
-                        "last_seen": lease.get("last-seen", ""),
-                        "comment": lease.get("comment", ""),
-                        "dynamic": lease.get("dynamic", "false") == "true"
-                    }
-                    for lease in leases
-                ]
+                result = []
+                for lease in leases:
+                    try:
+                        result.append({
+                            "id": lease.get(".id", ""),
+                            "address": self._safe_str(lease.get("address", "")),
+                            "mac_address": self._safe_str(lease.get("mac-address", "")),
+                            "client_id": self._safe_str(lease.get("client-id", "")),
+                            "hostname": self._safe_str(lease.get("host-name", "")),
+                            "server": self._safe_str(lease.get("server", "")),
+                            "status": self._safe_str(lease.get("status", "")),
+                            "expires_after": self._safe_str(lease.get("expires-after", "")),
+                            "last_seen": self._safe_str(lease.get("last-seen", "")),
+                            "comment": self._safe_str(lease.get("comment", "")),
+                            "dynamic": self._is_true(lease.get("dynamic", False)),
+                            "disabled": self._is_true(lease.get("disabled", False)),
+                            "blocked": self._is_true(lease.get("blocked", False)),
+                            "active_address": self._safe_str(lease.get("active-address", "")),
+                            "active_mac_address": self._safe_str(lease.get("active-mac-address", "")),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing DHCP lease: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting DHCP leases: {e}")
             return []
 
     def add_dhcp_lease(self, address: str, mac_address: str, server: str = "default",
-                       hostname: str = "", comment: str = "") -> bool:
+                       hostname: str = "", comment: str = "", disabled: bool = False) -> bool:
         """Add a static DHCP lease."""
         try:
             with self._connection() as api:
@@ -197,6 +204,8 @@ class MikrotikService:
                     params["host-name"] = hostname
                 if comment:
                     params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
                 api.path("/ip/dhcp-server/lease").add(**params)
                 return True
         except Exception as e:
@@ -228,65 +237,266 @@ class MikrotikService:
         try:
             with self._connection() as api:
                 servers = list(api.path("/ip/dhcp-server"))
-                return [
-                    {
-                        "id": srv.get(".id", ""),
-                        "name": srv.get("name", ""),
-                        "interface": srv.get("interface", ""),
-                        "address_pool": srv.get("address-pool", ""),
-                        "lease_time": srv.get("lease-time", ""),
-                        "disabled": srv.get("disabled", "false") == "true",
-                        "invalid": srv.get("invalid", "false") == "true",
-                        "authoritative": srv.get("authoritative", ""),
-                        "use_radius": srv.get("use-radius", "false") == "true"
-                    }
-                    for srv in servers
-                ]
+                result = []
+                for srv in servers:
+                    try:
+                        result.append({
+                            "id": srv.get(".id", ""),
+                            "name": self._safe_str(srv.get("name", "")),
+                            "interface": self._safe_str(srv.get("interface", "")),
+                            "address_pool": self._safe_str(srv.get("address-pool", "")),
+                            "lease_time": self._safe_str(srv.get("lease-time", "")),
+                            "disabled": self._is_true(srv.get("disabled", False)),
+                            "invalid": self._is_true(srv.get("invalid", False)),
+                            "authoritative": self._safe_str(srv.get("authoritative", "")),
+                            "use_radius": self._is_true(srv.get("use-radius", False)),
+                            "comment": self._safe_str(srv.get("comment", ""))
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing DHCP server: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting DHCP servers: {e}")
             return []
+
+    def add_dhcp_server(self, name: str, interface: str, address_pool: str,
+                        lease_time: str = "10m", authoritative: str = "yes",
+                        disabled: bool = False, comment: str = "") -> bool:
+        """Add a DHCP server."""
+        try:
+            with self._connection() as api:
+                params = {
+                    "name": name,
+                    "interface": interface,
+                    "address-pool": address_pool,
+                    "lease-time": lease_time,
+                    "authoritative": authoritative
+                }
+                if disabled:
+                    params["disabled"] = "yes"
+                if comment:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding DHCP server: {e}")
+            return False
+
+    def update_dhcp_server(self, server_id: str, lease_time: str = None,
+                           address_pool: str = None, authoritative: str = None,
+                           comment: str = None) -> bool:
+        """Update a DHCP server."""
+        try:
+            with self._connection() as api:
+                params = {".id": server_id}
+                if lease_time is not None:
+                    params["lease-time"] = lease_time
+                if address_pool is not None:
+                    params["address-pool"] = address_pool
+                if authoritative is not None:
+                    params["authoritative"] = authoritative
+                if comment is not None:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating DHCP server: {e}")
+            return False
+
+    def delete_dhcp_server(self, server_id: str) -> bool:
+        """Delete a DHCP server."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dhcp-server").remove(server_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting DHCP server: {e}")
+            return False
 
     def get_dhcp_networks(self) -> List[Dict[str, Any]]:
         """Get all DHCP network configurations."""
         try:
             with self._connection() as api:
                 networks = list(api.path("/ip/dhcp-server/network"))
-                return [
-                    {
-                        "id": net.get(".id", ""),
-                        "address": net.get("address", ""),
-                        "gateway": net.get("gateway", ""),
-                        "dns_server": net.get("dns-server", ""),
-                        "domain": net.get("domain", ""),
-                        "netmask": net.get("netmask", ""),
-                        "ntp_server": net.get("ntp-server", ""),
-                        "wins_server": net.get("wins-server", ""),
-                        "comment": net.get("comment", "")
-                    }
-                    for net in networks
-                ]
+                result = []
+                for net in networks:
+                    try:
+                        result.append({
+                            "id": net.get(".id", ""),
+                            "address": self._safe_str(net.get("address", "")),
+                            "gateway": self._safe_str(net.get("gateway", "")),
+                            "dns_server": self._safe_str(net.get("dns-server", "")),
+                            "domain": self._safe_str(net.get("domain", "")),
+                            "netmask": self._safe_str(net.get("netmask", "")),
+                            "ntp_server": self._safe_str(net.get("ntp-server", "")),
+                            "wins_server": self._safe_str(net.get("wins-server", "")),
+                            "comment": self._safe_str(net.get("comment", "")),
+                            "dhcp_option": self._safe_str(net.get("dhcp-option", "")),
+                            "dhcp_option_set": self._safe_str(net.get("dhcp-option-set", "")),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing DHCP network: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting DHCP networks: {e}")
             return []
 
+    def add_dhcp_network(self, address: str, gateway: str = "", dns_server: str = "",
+                         domain: str = "", ntp_server: str = "", comment: str = "") -> bool:
+        """Add a DHCP network."""
+        try:
+            with self._connection() as api:
+                params = {"address": address}
+                if gateway:
+                    params["gateway"] = gateway
+                if dns_server:
+                    params["dns-server"] = dns_server
+                if domain:
+                    params["domain"] = domain
+                if ntp_server:
+                    params["ntp-server"] = ntp_server
+                if comment:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server/network").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding DHCP network: {e}")
+            return False
+
+    def update_dhcp_network(self, network_id: str, gateway: str = None, dns_server: str = None,
+                            domain: str = None, ntp_server: str = None, comment: str = None) -> bool:
+        """Update a DHCP network."""
+        try:
+            with self._connection() as api:
+                params = {".id": network_id}
+                if gateway is not None:
+                    params["gateway"] = gateway
+                if dns_server is not None:
+                    params["dns-server"] = dns_server
+                if domain is not None:
+                    params["domain"] = domain
+                if ntp_server is not None:
+                    params["ntp-server"] = ntp_server
+                if comment is not None:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server/network").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating DHCP network: {e}")
+            return False
+
+    def delete_dhcp_network(self, network_id: str) -> bool:
+        """Delete a DHCP network."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dhcp-server/network").remove(network_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting DHCP network: {e}")
+            return False
+
     def get_ip_pools(self) -> List[Dict[str, Any]]:
-        """Get all IP pools."""
+        """Get all IP pools with usage statistics."""
         try:
             with self._connection() as api:
                 pools = list(api.path("/ip/pool"))
-                return [
-                    {
-                        "id": pool.get(".id", ""),
-                        "name": pool.get("name", ""),
-                        "ranges": pool.get("ranges", ""),
-                        "next_pool": pool.get("next-pool", ""),
-                        "comment": pool.get("comment", "")
-                    }
-                    for pool in pools
-                ]
+
+                # Try to get usage info via print with counters
+                pool_used = {}
+                try:
+                    used_entries = list(api.path("/ip/pool/used"))
+                    for entry in used_entries:
+                        pool_name = self._safe_str(entry.get("pool", ""))
+                        if pool_name:
+                            pool_used[pool_name] = pool_used.get(pool_name, 0) + 1
+                except Exception:
+                    pass
+
+                result = []
+                for pool in pools:
+                    try:
+                        name = self._safe_str(pool.get("name", ""))
+                        ranges_str = self._safe_str(pool.get("ranges", ""))
+                        total = self._calculate_pool_total(ranges_str)
+                        used = pool_used.get(name, 0)
+                        result.append({
+                            "id": pool.get(".id", ""),
+                            "name": name,
+                            "ranges": ranges_str,
+                            "next_pool": self._safe_str(pool.get("next-pool", "")),
+                            "comment": self._safe_str(pool.get("comment", "")),
+                            "total": total,
+                            "used": used,
+                            "available": total - used if total > 0 else 0,
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing IP pool: {e}")
+                return result
         except Exception as e:
             logger.error(f"Error getting IP pools: {e}")
             return []
+
+    def _calculate_pool_total(self, ranges_str: str) -> int:
+        """Calculate total IPs in a pool ranges string like '192.168.1.10-192.168.1.50,192.168.1.100-192.168.1.200'."""
+        total = 0
+        try:
+            for r in ranges_str.split(","):
+                r = r.strip()
+                if "-" in r:
+                    parts = r.split("-")
+                    start_parts = parts[0].strip().split(".")
+                    end_parts = parts[1].strip().split(".")
+                    start_num = sum(int(p) << (8 * (3 - i)) for i, p in enumerate(start_parts))
+                    end_num = sum(int(p) << (8 * (3 - i)) for i, p in enumerate(end_parts))
+                    total += end_num - start_num + 1
+                elif r:
+                    total += 1
+        except Exception:
+            pass
+        return total
+
+    def add_ip_pool(self, name: str, ranges: str, next_pool: str = "", comment: str = "") -> bool:
+        """Add an IP pool."""
+        try:
+            with self._connection() as api:
+                params = {"name": name, "ranges": ranges}
+                if next_pool:
+                    params["next-pool"] = next_pool
+                if comment:
+                    params["comment"] = comment
+                api.path("/ip/pool").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding IP pool: {e}")
+            return False
+
+    def update_ip_pool(self, pool_id: str, ranges: str = None, next_pool: str = None,
+                       comment: str = None) -> bool:
+        """Update an IP pool."""
+        try:
+            with self._connection() as api:
+                params = {".id": pool_id}
+                if ranges is not None:
+                    params["ranges"] = ranges
+                if next_pool is not None:
+                    params["next-pool"] = next_pool
+                if comment is not None:
+                    params["comment"] = comment
+                api.path("/ip/pool").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating IP pool: {e}")
+            return False
+
+    def delete_ip_pool(self, pool_id: str) -> bool:
+        """Delete an IP pool."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/pool").remove(pool_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting IP pool: {e}")
+            return False
 
     def toggle_dhcp_server(self, server_id: str, enable: bool) -> bool:
         """Enable or disable a DHCP server."""
@@ -298,6 +508,69 @@ class MikrotikService:
                 return True
         except Exception as e:
             logger.error(f"Error toggling DHCP server: {e}")
+            return False
+
+    def get_dhcp_options(self) -> List[Dict[str, Any]]:
+        """Get DHCP options."""
+        try:
+            with self._connection() as api:
+                options = list(api.path("/ip/dhcp-server/option"))
+                result = []
+                for opt in options:
+                    try:
+                        result.append({
+                            "id": opt.get(".id", ""),
+                            "name": self._safe_str(opt.get("name", "")),
+                            "code": self._safe_int(opt.get("code", 0)),
+                            "value": self._safe_str(opt.get("value", "")),
+                            "raw_value": self._safe_str(opt.get("raw-value", "")),
+                            "comment": self._safe_str(opt.get("comment", "")),
+                        })
+                    except Exception as e:
+                        logger.warning(f"Error processing DHCP option: {e}")
+                return result
+        except Exception as e:
+            logger.error(f"Error getting DHCP options: {e}")
+            return []
+
+    def add_dhcp_option(self, name: str, code: int, value: str = "", comment: str = "") -> bool:
+        """Add a DHCP option."""
+        try:
+            with self._connection() as api:
+                params = {"name": name, "code": str(code)}
+                if value:
+                    params["value"] = value
+                if comment:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server/option").add(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding DHCP option: {e}")
+            return False
+
+    def update_dhcp_option(self, option_id: str, value: str = None, comment: str = None) -> bool:
+        """Update a DHCP option."""
+        try:
+            with self._connection() as api:
+                params = {".id": option_id}
+                if value is not None:
+                    params["value"] = value
+                if comment is not None:
+                    params["comment"] = comment
+                api.path("/ip/dhcp-server/option").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating DHCP option: {e}")
+            return False
+
+    def delete_dhcp_option(self, option_id: str) -> bool:
+        """Delete a DHCP option."""
+        try:
+            with self._connection() as api:
+                api.path("/ip/dhcp-server/option").remove(option_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting DHCP option: {e}")
             return False
 
     # ==================== WiFi ====================

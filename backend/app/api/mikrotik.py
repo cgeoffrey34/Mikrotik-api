@@ -6,7 +6,10 @@ from typing import List
 from ..database import get_db
 from ..models import Router
 from ..schemas import (
-    DHCPLease, DHCPServer, DHCPNetwork, IPPool,
+    DHCPLease, DHCPLeaseCreate, DHCPServer, DHCPServerCreate, DHCPServerUpdate,
+    DHCPNetwork, DHCPNetworkCreate, DHCPNetworkUpdate,
+    IPPool, IPPoolCreate, IPPoolUpdate,
+    DHCPOption, DHCPOptionCreate,
     WifiClient, WirelessInterface, WirelessInterfaceUpdate, WirelessSecurityProfile,
     SecurityProfileCreate, SecurityProfileUpdate,
     AccessListEntry, AccessListEntryCreate,
@@ -45,27 +48,28 @@ async def get_router_service(router_id: int, db: AsyncSession) -> tuple[Router, 
 
 # ==================== DHCP ====================
 
-@router.get("/dhcp/leases", response_model=List[DHCPLease])
+@router.get("/dhcp/leases")
 async def get_dhcp_leases(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get DHCP leases from router."""
     _, service = await get_router_service(router_id, db)
-    leases = service.get_dhcp_leases()
-    return [DHCPLease(**lease) for lease in leases]
+    return service.get_dhcp_leases()
 
 
 @router.post("/dhcp/leases")
 async def add_dhcp_lease(
     router_id: int,
-    address: str,
-    mac_address: str,
-    server: str = "default",
-    hostname: str = "",
-    comment: str = "",
+    lease: DHCPLeaseCreate,
     db: AsyncSession = Depends(get_db)
 ):
     """Add a static DHCP lease."""
     _, service = await get_router_service(router_id, db)
-    success = service.add_dhcp_lease(address, mac_address, server, hostname, comment)
+    success = service.add_dhcp_lease(
+        address=lease.address,
+        mac_address=lease.mac_address,
+        server=lease.server,
+        hostname=lease.hostname or "",
+        comment=lease.comment or ""
+    )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to add DHCP lease")
     return {"success": True}
@@ -91,12 +95,64 @@ async def make_dhcp_lease_static(router_id: int, lease_id: str, db: AsyncSession
     return {"success": True}
 
 
-@router.get("/dhcp/servers", response_model=List[DHCPServer])
+@router.get("/dhcp/servers")
 async def get_dhcp_servers(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get DHCP servers."""
     _, service = await get_router_service(router_id, db)
-    servers = service.get_dhcp_servers()
-    return [DHCPServer(**srv) for srv in servers]
+    return service.get_dhcp_servers()
+
+
+@router.post("/dhcp/servers")
+async def add_dhcp_server(
+    router_id: int,
+    server: DHCPServerCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a DHCP server."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_dhcp_server(
+        name=server.name,
+        interface=server.interface,
+        address_pool=server.address_pool,
+        lease_time=server.lease_time,
+        authoritative=server.authoritative,
+        disabled=server.disabled,
+        comment=server.comment or ""
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add DHCP server")
+    return {"success": True}
+
+
+@router.put("/dhcp/servers/{server_id}")
+async def update_dhcp_server(
+    router_id: int,
+    server_id: str,
+    data: DHCPServerUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a DHCP server."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_dhcp_server(
+        server_id,
+        lease_time=data.lease_time,
+        address_pool=data.address_pool,
+        authoritative=data.authoritative,
+        comment=data.comment
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update DHCP server")
+    return {"success": True}
+
+
+@router.delete("/dhcp/servers/{server_id}")
+async def delete_dhcp_server(router_id: int, server_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a DHCP server."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_dhcp_server(server_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete DHCP server")
+    return {"success": True}
 
 
 @router.post("/dhcp/servers/{server_id}/toggle")
@@ -114,20 +170,172 @@ async def toggle_dhcp_server(
     return {"success": True}
 
 
-@router.get("/dhcp/networks", response_model=List[DHCPNetwork])
+@router.get("/dhcp/networks")
 async def get_dhcp_networks(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get DHCP network configurations."""
     _, service = await get_router_service(router_id, db)
-    networks = service.get_dhcp_networks()
-    return [DHCPNetwork(**net) for net in networks]
+    return service.get_dhcp_networks()
 
 
-@router.get("/dhcp/pools", response_model=List[IPPool])
-async def get_ip_pools(router_id: int, db: AsyncSession = Depends(get_db)):
-    """Get IP pools."""
+@router.post("/dhcp/networks")
+async def add_dhcp_network(
+    router_id: int,
+    network: DHCPNetworkCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a DHCP network."""
     _, service = await get_router_service(router_id, db)
-    pools = service.get_ip_pools()
-    return [IPPool(**pool) for pool in pools]
+    success = service.add_dhcp_network(
+        address=network.address,
+        gateway=network.gateway or "",
+        dns_server=network.dns_server or "",
+        domain=network.domain or "",
+        ntp_server=network.ntp_server or "",
+        comment=network.comment or ""
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add DHCP network")
+    return {"success": True}
+
+
+@router.put("/dhcp/networks/{network_id}")
+async def update_dhcp_network(
+    router_id: int,
+    network_id: str,
+    data: DHCPNetworkUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a DHCP network."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_dhcp_network(
+        network_id,
+        gateway=data.gateway,
+        dns_server=data.dns_server,
+        domain=data.domain,
+        ntp_server=data.ntp_server,
+        comment=data.comment
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update DHCP network")
+    return {"success": True}
+
+
+@router.delete("/dhcp/networks/{network_id}")
+async def delete_dhcp_network(router_id: int, network_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a DHCP network."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_dhcp_network(network_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete DHCP network")
+    return {"success": True}
+
+
+@router.get("/dhcp/pools")
+async def get_ip_pools(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get IP pools with usage stats."""
+    _, service = await get_router_service(router_id, db)
+    return service.get_ip_pools()
+
+
+@router.post("/dhcp/pools")
+async def add_ip_pool(
+    router_id: int,
+    pool: IPPoolCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add an IP pool."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_ip_pool(
+        name=pool.name,
+        ranges=pool.ranges,
+        next_pool=pool.next_pool or "",
+        comment=pool.comment or ""
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add IP pool")
+    return {"success": True}
+
+
+@router.put("/dhcp/pools/{pool_id}")
+async def update_ip_pool(
+    router_id: int,
+    pool_id: str,
+    data: IPPoolUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update an IP pool."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_ip_pool(
+        pool_id,
+        ranges=data.ranges,
+        next_pool=data.next_pool,
+        comment=data.comment
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update IP pool")
+    return {"success": True}
+
+
+@router.delete("/dhcp/pools/{pool_id}")
+async def delete_ip_pool(router_id: int, pool_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete an IP pool."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_ip_pool(pool_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete IP pool")
+    return {"success": True}
+
+
+@router.get("/dhcp/options")
+async def get_dhcp_options(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get DHCP options."""
+    _, service = await get_router_service(router_id, db)
+    return service.get_dhcp_options()
+
+
+@router.post("/dhcp/options")
+async def add_dhcp_option(
+    router_id: int,
+    option: DHCPOptionCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add a DHCP option."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_dhcp_option(
+        name=option.name,
+        code=option.code,
+        value=option.value or "",
+        comment=option.comment or ""
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add DHCP option")
+    return {"success": True}
+
+
+@router.put("/dhcp/options/{option_id}")
+async def update_dhcp_option(
+    router_id: int,
+    option_id: str,
+    value: str = Body(None),
+    comment: str = Body(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a DHCP option."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_dhcp_option(option_id, value=value, comment=comment)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update DHCP option")
+    return {"success": True}
+
+
+@router.delete("/dhcp/options/{option_id}")
+async def delete_dhcp_option(router_id: int, option_id: str, db: AsyncSession = Depends(get_db)):
+    """Delete a DHCP option."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_dhcp_option(option_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete DHCP option")
+    return {"success": True}
 
 
 # ==================== WiFi ====================
