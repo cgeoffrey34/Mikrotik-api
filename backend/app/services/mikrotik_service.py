@@ -357,20 +357,24 @@ class MikrotikService:
                 try:
                     wireless = list(api.path("/interface/wireless"))
                     for iface in wireless:
-                        interfaces.append({
-                            "id": iface.get(".id", ""),
-                            "name": iface.get("name", ""),
-                            "mac_address": iface.get("mac-address", ""),
-                            "ssid": iface.get("ssid", ""),
-                            "mode": iface.get("mode", ""),
-                            "band": iface.get("band", ""),
-                            "channel_width": iface.get("channel-width", ""),
-                            "frequency": iface.get("frequency", ""),
-                            "security_profile": iface.get("security-profile", ""),
-                            "disabled": iface.get("disabled", "false") == "true",
-                            "running": iface.get("running", "false") == "true",
-                            "interface_type": "wireless"
-                        })
+                        try:
+                            interfaces.append({
+                                "id": iface.get(".id", ""),
+                                "name": self._safe_str(iface.get("name", "")),
+                                "mac_address": self._safe_str(iface.get("mac-address", "")),
+                                "ssid": self._safe_str(iface.get("ssid", "")),
+                                "mode": self._safe_str(iface.get("mode", "")),
+                                "band": self._safe_str(iface.get("band", "")),
+                                "channel_width": self._safe_str(iface.get("channel-width", "")),
+                                "frequency": self._safe_str(iface.get("frequency", "")),
+                                "security_profile": self._safe_str(iface.get("security-profile", "")),
+                                "disabled": self._is_true(iface.get("disabled", False)),
+                                "running": self._is_true(iface.get("running", False)),
+                                "interface_type": "wireless",
+                                "comment": self._safe_str(iface.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing wireless interface: {e}")
                 except Exception as e:
                     logger.debug(f"No standard wireless: {e}")
 
@@ -378,20 +382,24 @@ class MikrotikService:
                 try:
                     wifi = list(api.path("/interface/wifi"))
                     for iface in wifi:
-                        interfaces.append({
-                            "id": iface.get(".id", ""),
-                            "name": iface.get("name", ""),
-                            "mac_address": iface.get("mac-address", ""),
-                            "ssid": iface.get("configuration.ssid", iface.get("ssid", "")),
-                            "mode": iface.get("configuration.mode", iface.get("mode", "")),
-                            "band": iface.get("configuration.band", ""),
-                            "channel_width": iface.get("configuration.channel.width", ""),
-                            "frequency": iface.get("configuration.channel.frequency", ""),
-                            "security_profile": iface.get("security", ""),
-                            "disabled": iface.get("disabled", "false") == "true",
-                            "running": iface.get("running", "false") == "true",
-                            "interface_type": "wifi"
-                        })
+                        try:
+                            interfaces.append({
+                                "id": iface.get(".id", ""),
+                                "name": self._safe_str(iface.get("name", "")),
+                                "mac_address": self._safe_str(iface.get("mac-address", "")),
+                                "ssid": self._safe_str(iface.get("configuration.ssid", iface.get("ssid", ""))),
+                                "mode": self._safe_str(iface.get("configuration.mode", iface.get("mode", ""))),
+                                "band": self._safe_str(iface.get("configuration.band", "")),
+                                "channel_width": self._safe_str(iface.get("configuration.channel.width", "")),
+                                "frequency": self._safe_str(iface.get("configuration.channel.frequency", "")),
+                                "security_profile": self._safe_str(iface.get("security", iface.get("configuration.security", ""))),
+                                "disabled": self._is_true(iface.get("disabled", False)),
+                                "running": self._is_true(iface.get("running", False)),
+                                "interface_type": "wifi",
+                                "comment": self._safe_str(iface.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing wifi interface: {e}")
                 except Exception as e:
                     logger.debug(f"No WiFi interfaces: {e}")
 
@@ -410,15 +418,22 @@ class MikrotikService:
                 try:
                     wireless_profiles = list(api.path("/interface/wireless/security-profiles"))
                     for profile in wireless_profiles:
-                        profiles.append({
-                            "id": profile.get(".id", ""),
-                            "name": profile.get("name", ""),
-                            "mode": profile.get("mode", ""),
-                            "authentication_types": profile.get("authentication-types", ""),
-                            "wpa_pre_shared_key": "****" if profile.get("wpa-pre-shared-key") else "",
-                            "wpa2_pre_shared_key": "****" if profile.get("wpa2-pre-shared-key") else "",
-                            "profile_type": "wireless"
-                        })
+                        try:
+                            profiles.append({
+                                "id": profile.get(".id", ""),
+                                "name": self._safe_str(profile.get("name", "")),
+                                "mode": self._safe_str(profile.get("mode", "")),
+                                "authentication_types": self._safe_str(profile.get("authentication-types", "")),
+                                "unicast_ciphers": self._safe_str(profile.get("unicast-ciphers", "")),
+                                "group_ciphers": self._safe_str(profile.get("group-ciphers", "")),
+                                "wpa_pre_shared_key": "****" if profile.get("wpa-pre-shared-key") else "",
+                                "wpa2_pre_shared_key": "****" if profile.get("wpa2-pre-shared-key") else "",
+                                "profile_type": "wireless",
+                                "default": self._is_true(profile.get("default", False)),
+                                "comment": self._safe_str(profile.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing wireless security profile: {e}")
                 except Exception:
                     pass
 
@@ -426,14 +441,21 @@ class MikrotikService:
                 try:
                     wifi_security = list(api.path("/interface/wifi/security"))
                     for sec in wifi_security:
-                        profiles.append({
-                            "id": sec.get(".id", ""),
-                            "name": sec.get("name", ""),
-                            "mode": sec.get("authentication-types", ""),
-                            "authentication_types": sec.get("authentication-types", ""),
-                            "passphrase": "****" if sec.get("passphrase") else "",
-                            "profile_type": "wifi"
-                        })
+                        try:
+                            profiles.append({
+                                "id": sec.get(".id", ""),
+                                "name": self._safe_str(sec.get("name", "")),
+                                "mode": self._safe_str(sec.get("authentication-types", "")),
+                                "authentication_types": self._safe_str(sec.get("authentication-types", "")),
+                                "unicast_ciphers": self._safe_str(sec.get("unicast-ciphers", "")),
+                                "group_ciphers": self._safe_str(sec.get("group-ciphers", "")),
+                                "passphrase": "****" if sec.get("passphrase") else "",
+                                "profile_type": "wifi",
+                                "default": self._is_true(sec.get("default", False)),
+                                "comment": self._safe_str(sec.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing wifi security profile: {e}")
                 except Exception:
                     pass
 
@@ -442,22 +464,286 @@ class MikrotikService:
             logger.error(f"Error getting security profiles: {e}")
             return []
 
-    def update_wireless_interface(self, interface_id: str, ssid: str = None,
-                                   security_profile: str = None, disabled: bool = None) -> bool:
+    def create_security_profile(self, name: str, mode: str = "dynamic-keys",
+                                authentication_types: str = None,
+                                wpa_pre_shared_key: str = None,
+                                wpa2_pre_shared_key: str = None,
+                                passphrase: str = None,
+                                unicast_ciphers: str = None,
+                                group_ciphers: str = None,
+                                comment: str = None) -> bool:
+        """Create a wireless security profile."""
+        try:
+            with self._connection() as api:
+                # Try standard wireless first
+                params = {"name": name, "mode": mode}
+                if authentication_types:
+                    params["authentication-types"] = authentication_types
+                if wpa_pre_shared_key:
+                    params["wpa-pre-shared-key"] = wpa_pre_shared_key
+                if wpa2_pre_shared_key:
+                    params["wpa2-pre-shared-key"] = wpa2_pre_shared_key
+                if unicast_ciphers:
+                    params["unicast-ciphers"] = unicast_ciphers
+                if group_ciphers:
+                    params["group-ciphers"] = group_ciphers
+                if comment:
+                    params["comment"] = comment
+
+                try:
+                    api.path("/interface/wireless/security-profiles").add(**params)
+                    return True
+                except Exception:
+                    pass
+
+                # Try WiFi security (RouterOS 7.13+)
+                wifi_params = {"name": name}
+                if authentication_types:
+                    wifi_params["authentication-types"] = authentication_types
+                if passphrase:
+                    wifi_params["passphrase"] = passphrase
+                if comment:
+                    wifi_params["comment"] = comment
+                api.path("/interface/wifi/security").add(**wifi_params)
+                return True
+        except Exception as e:
+            logger.error(f"Error creating security profile: {e}")
+            return False
+
+    def update_security_profile(self, profile_id: str, profile_type: str = "wireless",
+                                mode: str = None, authentication_types: str = None,
+                                wpa_pre_shared_key: str = None,
+                                wpa2_pre_shared_key: str = None,
+                                passphrase: str = None,
+                                unicast_ciphers: str = None,
+                                group_ciphers: str = None,
+                                comment: str = None) -> bool:
+        """Update a wireless security profile."""
+        try:
+            with self._connection() as api:
+                params = {".id": profile_id}
+
+                if profile_type == "wireless":
+                    if mode is not None:
+                        params["mode"] = mode
+                    if authentication_types is not None:
+                        params["authentication-types"] = authentication_types
+                    if wpa_pre_shared_key is not None:
+                        params["wpa-pre-shared-key"] = wpa_pre_shared_key
+                    if wpa2_pre_shared_key is not None:
+                        params["wpa2-pre-shared-key"] = wpa2_pre_shared_key
+                    if unicast_ciphers is not None:
+                        params["unicast-ciphers"] = unicast_ciphers
+                    if group_ciphers is not None:
+                        params["group-ciphers"] = group_ciphers
+                    if comment is not None:
+                        params["comment"] = comment
+                    api.path("/interface/wireless/security-profiles").update(**params)
+                else:
+                    if authentication_types is not None:
+                        params["authentication-types"] = authentication_types
+                    if passphrase is not None:
+                        params["passphrase"] = passphrase
+                    if comment is not None:
+                        params["comment"] = comment
+                    api.path("/interface/wifi/security").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error updating security profile: {e}")
+            return False
+
+    def delete_security_profile(self, profile_id: str, profile_type: str = "wireless") -> bool:
+        """Delete a wireless security profile."""
+        try:
+            with self._connection() as api:
+                if profile_type == "wireless":
+                    api.path("/interface/wireless/security-profiles").remove(profile_id)
+                else:
+                    api.path("/interface/wifi/security").remove(profile_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting security profile: {e}")
+            return False
+
+    def update_wireless_interface(self, interface_id: str, interface_type: str = "wireless",
+                                   ssid: str = None, security_profile: str = None,
+                                   disabled: bool = None, band: str = None,
+                                   channel_width: str = None, frequency: str = None,
+                                   mode: str = None, comment: str = None) -> bool:
         """Update wireless interface settings."""
         try:
             with self._connection() as api:
                 params = {".id": interface_id}
-                if ssid is not None:
-                    params["ssid"] = ssid
-                if security_profile is not None:
-                    params["security-profile"] = security_profile
-                if disabled is not None:
-                    params["disabled"] = "yes" if disabled else "no"
-                api.path("/interface/wireless").update(**params)
+
+                if interface_type == "wireless":
+                    if ssid is not None:
+                        params["ssid"] = ssid
+                    if security_profile is not None:
+                        params["security-profile"] = security_profile
+                    if disabled is not None:
+                        params["disabled"] = "yes" if disabled else "no"
+                    if band is not None:
+                        params["band"] = band
+                    if channel_width is not None:
+                        params["channel-width"] = channel_width
+                    if frequency is not None:
+                        params["frequency"] = frequency
+                    if mode is not None:
+                        params["mode"] = mode
+                    if comment is not None:
+                        params["comment"] = comment
+                    api.path("/interface/wireless").update(**params)
+                else:
+                    if ssid is not None:
+                        params["configuration.ssid"] = ssid
+                    if security_profile is not None:
+                        params["security"] = security_profile
+                    if disabled is not None:
+                        params["disabled"] = "yes" if disabled else "no"
+                    if comment is not None:
+                        params["comment"] = comment
+                    api.path("/interface/wifi").update(**params)
                 return True
         except Exception as e:
             logger.error(f"Error updating wireless interface: {e}")
+            return False
+
+    def toggle_wireless_interface(self, interface_id: str, enable: bool, interface_type: str = "wireless") -> bool:
+        """Enable or disable a wireless interface."""
+        try:
+            with self._connection() as api:
+                params = {".id": interface_id, "disabled": "no" if enable else "yes"}
+                if interface_type == "wireless":
+                    api.path("/interface/wireless").update(**params)
+                else:
+                    api.path("/interface/wifi").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling wireless interface: {e}")
+            return False
+
+    def get_access_list(self) -> List[Dict[str, Any]]:
+        """Get wireless access list entries."""
+        try:
+            with self._connection() as api:
+                entries = []
+
+                # Try standard wireless access list
+                try:
+                    access = list(api.path("/interface/wireless/access-list"))
+                    for entry in access:
+                        try:
+                            entries.append({
+                                "id": entry.get(".id", ""),
+                                "mac_address": self._safe_str(entry.get("mac-address", "")),
+                                "interface": self._safe_str(entry.get("interface", "")),
+                                "signal_range": self._safe_str(entry.get("signal-range", "")),
+                                "authentication": self._is_true(entry.get("authentication", True)),
+                                "forwarding": self._is_true(entry.get("forwarding", True)),
+                                "disabled": self._is_true(entry.get("disabled", False)),
+                                "comment": self._safe_str(entry.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing access list entry: {e}")
+                except Exception:
+                    pass
+
+                # Try WiFi access list (RouterOS 7.13+)
+                try:
+                    wifi_access = list(api.path("/interface/wifi/access-list"))
+                    for entry in wifi_access:
+                        try:
+                            entries.append({
+                                "id": entry.get(".id", ""),
+                                "mac_address": self._safe_str(entry.get("mac-address", "")),
+                                "interface": self._safe_str(entry.get("interface", "")),
+                                "signal_range": self._safe_str(entry.get("signal-range", "")),
+                                "authentication": self._is_true(entry.get("action", "accept") == "accept") if entry.get("action") else True,
+                                "forwarding": True,
+                                "disabled": self._is_true(entry.get("disabled", False)),
+                                "comment": self._safe_str(entry.get("comment", ""))
+                            })
+                        except Exception as e:
+                            logger.warning(f"Error processing wifi access list entry: {e}")
+                except Exception:
+                    pass
+
+                return entries
+        except Exception as e:
+            logger.error(f"Error getting access list: {e}")
+            return []
+
+    def add_access_list_entry(self, mac_address: str, interface: str = None,
+                              signal_range: str = None, authentication: bool = True,
+                              forwarding: bool = True, comment: str = None,
+                              disabled: bool = False) -> bool:
+        """Add an access list entry."""
+        try:
+            with self._connection() as api:
+                params = {"mac-address": mac_address}
+                if interface:
+                    params["interface"] = interface
+                if signal_range:
+                    params["signal-range"] = signal_range
+                params["authentication"] = "yes" if authentication else "no"
+                params["forwarding"] = "yes" if forwarding else "no"
+                if comment:
+                    params["comment"] = comment
+                if disabled:
+                    params["disabled"] = "yes"
+
+                try:
+                    api.path("/interface/wireless/access-list").add(**params)
+                    return True
+                except Exception:
+                    pass
+
+                # Try WiFi access list (RouterOS 7.13+)
+                wifi_params = {"mac-address": mac_address}
+                if interface:
+                    wifi_params["interface"] = interface
+                if signal_range:
+                    wifi_params["signal-range"] = signal_range
+                wifi_params["action"] = "accept" if authentication else "reject"
+                if comment:
+                    wifi_params["comment"] = comment
+                if disabled:
+                    wifi_params["disabled"] = "yes"
+                api.path("/interface/wifi/access-list").add(**wifi_params)
+                return True
+        except Exception as e:
+            logger.error(f"Error adding access list entry: {e}")
+            return False
+
+    def delete_access_list_entry(self, entry_id: str) -> bool:
+        """Delete an access list entry."""
+        try:
+            with self._connection() as api:
+                try:
+                    api.path("/interface/wireless/access-list").remove(entry_id)
+                    return True
+                except Exception:
+                    pass
+                api.path("/interface/wifi/access-list").remove(entry_id)
+                return True
+        except Exception as e:
+            logger.error(f"Error deleting access list entry: {e}")
+            return False
+
+    def toggle_access_list_entry(self, entry_id: str, enable: bool) -> bool:
+        """Enable or disable an access list entry."""
+        try:
+            with self._connection() as api:
+                params = {".id": entry_id, "disabled": "no" if enable else "yes"}
+                try:
+                    api.path("/interface/wireless/access-list").update(**params)
+                    return True
+                except Exception:
+                    pass
+                api.path("/interface/wifi/access-list").update(**params)
+                return True
+        except Exception as e:
+            logger.error(f"Error toggling access list entry: {e}")
             return False
 
     # ==================== Interfaces ====================

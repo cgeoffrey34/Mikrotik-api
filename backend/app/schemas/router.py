@@ -169,6 +169,18 @@ class WirelessInterface(BaseModel):
     disabled: bool = False
     running: bool = False
     interface_type: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class WirelessInterfaceUpdate(BaseModel):
+    ssid: Optional[str] = None
+    security_profile: Optional[str] = None
+    disabled: Optional[bool] = None
+    band: Optional[str] = None
+    channel_width: Optional[str] = None
+    frequency: Optional[str] = None
+    mode: Optional[str] = None
+    comment: Optional[str] = None
 
 
 class WirelessSecurityProfile(BaseModel):
@@ -176,10 +188,58 @@ class WirelessSecurityProfile(BaseModel):
     name: str
     mode: Optional[str] = None
     authentication_types: Optional[str] = None
+    unicast_ciphers: Optional[str] = None
+    group_ciphers: Optional[str] = None
     wpa_pre_shared_key: Optional[str] = None
     wpa2_pre_shared_key: Optional[str] = None
     passphrase: Optional[str] = None
     profile_type: Optional[str] = None
+    default: bool = False
+    comment: Optional[str] = None
+
+
+class SecurityProfileCreate(BaseModel):
+    name: str
+    mode: str = "dynamic-keys"
+    authentication_types: Optional[str] = None
+    wpa_pre_shared_key: Optional[str] = None
+    wpa2_pre_shared_key: Optional[str] = None
+    passphrase: Optional[str] = None
+    unicast_ciphers: Optional[str] = None
+    group_ciphers: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class SecurityProfileUpdate(BaseModel):
+    mode: Optional[str] = None
+    authentication_types: Optional[str] = None
+    wpa_pre_shared_key: Optional[str] = None
+    wpa2_pre_shared_key: Optional[str] = None
+    passphrase: Optional[str] = None
+    unicast_ciphers: Optional[str] = None
+    group_ciphers: Optional[str] = None
+    comment: Optional[str] = None
+
+
+class AccessListEntry(BaseModel):
+    id: str
+    mac_address: Optional[str] = None
+    interface: Optional[str] = None
+    signal_range: Optional[str] = None
+    authentication: bool = True
+    forwarding: bool = True
+    disabled: bool = False
+    comment: Optional[str] = None
+
+
+class AccessListEntryCreate(BaseModel):
+    mac_address: str
+    interface: Optional[str] = None
+    signal_range: Optional[str] = None
+    authentication: bool = True
+    forwarding: bool = True
+    comment: Optional[str] = None
+    disabled: bool = False
 
 
 # Interface schemas

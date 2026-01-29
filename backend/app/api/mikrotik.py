@@ -7,7 +7,9 @@ from ..database import get_db
 from ..models import Router
 from ..schemas import (
     DHCPLease, DHCPServer, DHCPNetwork, IPPool,
-    WifiClient, WirelessInterface, WirelessSecurityProfile,
+    WifiClient, WirelessInterface, WirelessInterfaceUpdate, WirelessSecurityProfile,
+    SecurityProfileCreate, SecurityProfileUpdate,
+    AccessListEntry, AccessListEntryCreate,
     Interface,
     Bridge, BridgePort, BridgeVlan,
     IPAddress, Route,
@@ -130,45 +132,190 @@ async def get_ip_pools(router_id: int, db: AsyncSession = Depends(get_db)):
 
 # ==================== WiFi ====================
 
-@router.get("/wifi/clients", response_model=List[WifiClient])
+@router.get("/wifi/clients")
 async def get_wifi_clients(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get connected WiFi clients."""
     _, service = await get_router_service(router_id, db)
-    clients = service.get_wifi_clients()
-    return [WifiClient(**client) for client in clients]
+    return service.get_wifi_clients()
 
 
-@router.get("/wifi/interfaces", response_model=List[WirelessInterface])
+@router.get("/wifi/interfaces")
 async def get_wireless_interfaces(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get wireless interfaces."""
     _, service = await get_router_service(router_id, db)
-    interfaces = service.get_wireless_interfaces()
-    return [WirelessInterface(**iface) for iface in interfaces]
+    return service.get_wireless_interfaces()
 
 
-@router.post("/wifi/interfaces/{interface_id}/update")
+@router.put("/wifi/interfaces/{interface_id}")
 async def update_wireless_interface(
     router_id: int,
     interface_id: str,
-    ssid: str = None,
-    security_profile: str = None,
-    disabled: bool = None,
+    data: WirelessInterfaceUpdate,
     db: AsyncSession = Depends(get_db)
 ):
     """Update wireless interface settings."""
     _, service = await get_router_service(router_id, db)
-    success = service.update_wireless_interface(interface_id, ssid, security_profile, disabled)
+    success = service.update_wireless_interface(
+        interface_id,
+        interface_type=data.mode if data.mode in ("wireless", "wifi") else "wireless",
+        ssid=data.ssid,
+        security_profile=data.security_profile,
+        disabled=data.disabled,
+        band=data.band,
+        channel_width=data.channel_width,
+        frequency=data.frequency,
+        comment=data.comment
+    )
     if not success:
         raise HTTPException(status_code=500, detail="Failed to update wireless interface")
     return {"success": True}
 
 
-@router.get("/wifi/security-profiles", response_model=List[WirelessSecurityProfile])
+@router.post("/wifi/interfaces/{interface_id}/toggle")
+async def toggle_wireless_interface(
+    router_id: int,
+    interface_id: str,
+    enable: bool = True,
+    interface_type: str = "wireless",
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable a wireless interface."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_wireless_interface(interface_id, enable, interface_type)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle wireless interface")
+    return {"success": True}
+
+
+@router.get("/wifi/security-profiles")
 async def get_security_profiles(router_id: int, db: AsyncSession = Depends(get_db)):
     """Get wireless security profiles."""
     _, service = await get_router_service(router_id, db)
-    profiles = service.get_security_profiles()
-    return [WirelessSecurityProfile(**profile) for profile in profiles]
+    return service.get_security_profiles()
+
+
+@router.post("/wifi/security-profiles")
+async def create_security_profile(
+    router_id: int,
+    profile: SecurityProfileCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Create a wireless security profile."""
+    _, service = await get_router_service(router_id, db)
+    success = service.create_security_profile(
+        name=profile.name,
+        mode=profile.mode,
+        authentication_types=profile.authentication_types,
+        wpa_pre_shared_key=profile.wpa_pre_shared_key,
+        wpa2_pre_shared_key=profile.wpa2_pre_shared_key,
+        passphrase=profile.passphrase,
+        unicast_ciphers=profile.unicast_ciphers,
+        group_ciphers=profile.group_ciphers,
+        comment=profile.comment
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create security profile")
+    return {"success": True}
+
+
+@router.put("/wifi/security-profiles/{profile_id}")
+async def update_security_profile(
+    router_id: int,
+    profile_id: str,
+    profile: SecurityProfileUpdate,
+    profile_type: str = "wireless",
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a wireless security profile."""
+    _, service = await get_router_service(router_id, db)
+    success = service.update_security_profile(
+        profile_id,
+        profile_type=profile_type,
+        mode=profile.mode,
+        authentication_types=profile.authentication_types,
+        wpa_pre_shared_key=profile.wpa_pre_shared_key,
+        wpa2_pre_shared_key=profile.wpa2_pre_shared_key,
+        passphrase=profile.passphrase,
+        unicast_ciphers=profile.unicast_ciphers,
+        group_ciphers=profile.group_ciphers,
+        comment=profile.comment
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to update security profile")
+    return {"success": True}
+
+
+@router.delete("/wifi/security-profiles/{profile_id}")
+async def delete_security_profile(
+    router_id: int,
+    profile_id: str,
+    profile_type: str = "wireless",
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a wireless security profile."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_security_profile(profile_id, profile_type)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete security profile")
+    return {"success": True}
+
+
+@router.get("/wifi/access-list")
+async def get_access_list(router_id: int, db: AsyncSession = Depends(get_db)):
+    """Get wireless access list."""
+    _, service = await get_router_service(router_id, db)
+    return service.get_access_list()
+
+
+@router.post("/wifi/access-list")
+async def add_access_list_entry(
+    router_id: int,
+    entry: AccessListEntryCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Add an access list entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.add_access_list_entry(
+        mac_address=entry.mac_address,
+        interface=entry.interface,
+        signal_range=entry.signal_range,
+        authentication=entry.authentication,
+        forwarding=entry.forwarding,
+        comment=entry.comment,
+        disabled=entry.disabled
+    )
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add access list entry")
+    return {"success": True}
+
+
+@router.delete("/wifi/access-list/{entry_id}")
+async def delete_access_list_entry(
+    router_id: int,
+    entry_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete an access list entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.delete_access_list_entry(entry_id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete access list entry")
+    return {"success": True}
+
+
+@router.post("/wifi/access-list/{entry_id}/toggle")
+async def toggle_access_list_entry(
+    router_id: int,
+    entry_id: str,
+    enable: bool = True,
+    db: AsyncSession = Depends(get_db)
+):
+    """Enable or disable an access list entry."""
+    _, service = await get_router_service(router_id, db)
+    success = service.toggle_access_list_entry(entry_id, enable)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to toggle access list entry")
+    return {"success": True}
 
 
 # ==================== Interfaces ====================
