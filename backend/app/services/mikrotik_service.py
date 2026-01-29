@@ -282,19 +282,26 @@ class MikrotikService:
             logger.error(f"Error adding DHCP server: {e}")
             return False
 
-    def update_dhcp_server(self, server_id: str, lease_time: str = None,
-                           address_pool: str = None, authoritative: str = None,
-                           comment: str = None) -> bool:
+    def update_dhcp_server(self, server_id: str, name: str = None,
+                           interface: str = None, address_pool: str = None,
+                           lease_time: str = None, authoritative: str = None,
+                           disabled: bool = None, comment: str = None) -> bool:
         """Update a DHCP server."""
         try:
             with self._connection() as api:
                 params = {".id": server_id}
-                if lease_time is not None:
-                    params["lease-time"] = lease_time
+                if name is not None:
+                    params["name"] = name
+                if interface is not None:
+                    params["interface"] = interface
                 if address_pool is not None:
                     params["address-pool"] = address_pool
+                if lease_time is not None:
+                    params["lease-time"] = lease_time
                 if authoritative is not None:
                     params["authoritative"] = authoritative
+                if disabled is not None:
+                    params["disabled"] = "yes" if disabled else "no"
                 if comment is not None:
                     params["comment"] = comment
                 api.path("/ip/dhcp-server").update(**params)

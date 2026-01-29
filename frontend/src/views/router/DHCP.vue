@@ -327,16 +327,16 @@
     <!-- Add/Edit Server Modal -->
     <Modal v-model="showServerModal" :title="editingServer ? 'Modifier le serveur' : 'Ajouter un serveur'" size="sm">
       <form @submit.prevent="saveServer" class="space-y-4">
-        <div v-if="!editingServer">
+        <div>
           <label class="label">Nom *</label>
           <input v-model="serverForm.name" type="text" class="input" placeholder="dhcp1" required />
         </div>
-        <div v-if="!editingServer">
+        <div>
           <label class="label">Interface *</label>
           <input v-model="serverForm.interface" type="text" class="input" placeholder="bridge1" required />
         </div>
         <div>
-          <label class="label">Pool d'adresses {{ editingServer ? '' : '*' }}</label>
+          <label class="label">Pool d'adresses *</label>
           <select v-model="serverForm.address_pool" class="input">
             <option v-for="pool in pools" :key="pool.id" :value="pool.name">{{ pool.name }}</option>
           </select>
@@ -354,7 +354,7 @@
             <option value="after-10sec-delay">after-10sec-delay</option>
           </select>
         </div>
-        <div v-if="!editingServer" class="flex items-center gap-2">
+        <div class="flex items-center gap-2">
           <input v-model="serverForm.disabled" type="checkbox" id="server-disabled" class="rounded" />
           <label for="server-disabled" class="text-sm text-gray-700">Desactive</label>
         </div>
@@ -722,9 +722,12 @@ async function saveServer() {
   try {
     if (editingServer.value) {
       await api.put(`/routers/${routerId}/dhcp/servers/${editingServer.value.id}`, {
-        lease_time: serverForm.lease_time,
+        name: serverForm.name,
+        interface: serverForm.interface,
         address_pool: serverForm.address_pool,
+        lease_time: serverForm.lease_time,
         authoritative: serverForm.authoritative,
+        disabled: serverForm.disabled,
         comment: serverForm.comment
       })
       notifications.success('Serveur modifie')

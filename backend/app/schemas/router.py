@@ -148,9 +148,12 @@ class DHCPServerCreate(BaseModel):
 
 
 class DHCPServerUpdate(BaseModel):
-    lease_time: Optional[str] = None
+    name: Optional[str] = None
+    interface: Optional[str] = None
     address_pool: Optional[str] = None
+    lease_time: Optional[str] = None
     authoritative: Optional[str] = None
+    disabled: Optional[bool] = None
     comment: Optional[str] = None
 
 

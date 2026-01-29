@@ -135,9 +135,12 @@ async def update_dhcp_server(
     _, service = await get_router_service(router_id, db)
     success = service.update_dhcp_server(
         server_id,
-        lease_time=data.lease_time,
+        name=data.name,
+        interface=data.interface,
         address_pool=data.address_pool,
+        lease_time=data.lease_time,
         authoritative=data.authoritative,
+        disabled=data.disabled,
         comment=data.comment
     )
     if not success:
